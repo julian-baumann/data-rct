@@ -1,4 +1,5 @@
-use data_rct::udp_discovery::{DeviceInfo, UdpDiscovery};
+use data_rct::discovery::Discovery;
+use data_rct::udp_discovery::{DeviceInfo, Discovery};
 
 fn get_my_device() -> DeviceInfo {
     return DeviceInfo {
@@ -12,15 +13,16 @@ fn get_my_device() -> DeviceInfo {
 
 #[test]
 fn start_discovery() {
-    let mut discovery = UdpDiscovery::new(get_my_device());
+    let mut discovery = Discovery::new(get_my_device());
     let mut found_device = false;
 
-    discovery.start(|device_info| {
+    let closure: fn(DeviceInfo) = |device_info: DeviceInfo| {
         println!("discovered {}", device_info.name);
-        // found_device = true;
-    }).unwrap();
+        found_device = true;
+    };
+
+    discovery.start(closure).unwrap();
 
     loop {
-
     }
 }
