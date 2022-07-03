@@ -1,5 +1,6 @@
-use data_rct::discovery::Discovery;
-use data_rct::udp_discovery::{DeviceInfo, Discovery};
+use std::thread;
+use std::time::Duration;
+use data_rct::discovery::{DeviceInfo, Discovery};
 
 fn get_my_device() -> DeviceInfo {
     return DeviceInfo {
@@ -13,16 +14,18 @@ fn get_my_device() -> DeviceInfo {
 
 #[test]
 fn start_discovery() {
-    let mut discovery = Discovery::new(get_my_device());
-    let mut found_device = false;
-
-    let closure: fn(DeviceInfo) = |device_info: DeviceInfo| {
-        println!("discovered {}", device_info.name);
-        found_device = true;
-    };
-
-    discovery.start(closure).unwrap();
+    let discovery = Discovery::new(get_my_device());
 
     loop {
+        thread::sleep(Duration::from_millis(2000));
+        let devices = discovery.get_devices();
+
+        if let Some(devices) = devices {
+            for device in devices {
+                println!("Found {}", device.name);
+            }
+        } else {
+            println!("Found nothing");
+        }
     }
 }

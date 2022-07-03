@@ -1,11 +1,45 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::net::{SocketAddr, UdpSocket};
 use std::io::ErrorKind;
+use crossbeam_channel::Sender;
 use crate::discovery::DeviceInfo;
-use crate::observer::{IObserver, ISubject};
 use crate::transform::{ByteConvertable, get_utf8_message_part};
 
 const DISCOVERY_PORTS: [u16; 3] = [42400, 42410, 42420];
+
+impl ByteConvertable for DeviceInfo {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut result: Vec<u8> = Vec::new();
+        result.append(&mut self.id.as_bytes().to_vec());
+        result.push(0u8);
+        result.append(&mut self.name.as_bytes().to_vec());
+        result.push(0u8);
+        result.append(&mut self.port.to_string().as_bytes().to_vec());
+        result.push(0u8);
+        result.append(&mut self.device_type.as_bytes().to_vec());
+        result.push(0u8);
+
+        return result;
+    }
+
+    fn from_bytes(message: &mut Vec<u8>, ip_address: String) -> Option<DeviceInfo> {
+        let id = get_utf8_message_part(message)?;
+        let name = get_utf8_message_part(message)?;
+        let port = get_utf8_message_part(message)?;
+        let device_type = get_utf8_message_part(message)?;
+
+        let port = port.as_bytes().first()?.to_owned();
+
+        return Some(DeviceInfo {
+            id,
+            name,
+            port,
+            device_type,
+            ip_address
+        });
+    }
+}
 
 enum MessageType {
     Unknown,
@@ -14,35 +48,20 @@ enum MessageType {
     RemoveDeviceFromDiscovery
 }
 
-pub struct UdpDiscovery<'a, T: IObserver> {
+pub struct UdpDiscovery<> {
     socket: UdpSocket,
     my_device: DeviceInfo,
-    device_observers: Vec<&'a T>
+    devices: HashMap<String, DeviceInfo>,
+    sender: Sender<HashMap<String, DeviceInfo>>
 }
 
-impl<'a, T: IObserver> ISubject<'a, T> for UdpDiscovery<'a, T> {
-    fn attach(&mut self, observer: &'a T) {
-        self.device_observers.push(observer);
-    }
-    fn detach(&mut self, observer: &'a T) {
-        // if let Some(idx) = self.device_observers.iter().position(|x| *x == observer) {
-        //     self.device_observers.remove(idx);
-        // }
-    }
-
-    fn notify_observers(&self) {
-        for item in self.device_observers.iter() {
-            item.update();
-        }
-    }
-}
-
-impl<'a, T: IObserver> UdpDiscovery<'a, T> {
-    pub fn new(my_device: DeviceInfo) -> Result<UdpDiscovery<'a, T>, Box<dyn Error>> {
+impl UdpDiscovery {
+    pub fn new(my_device: DeviceInfo, sender: Sender<HashMap<String, DeviceInfo>>) -> Result<UdpDiscovery, Box<dyn Error>> {
         return Ok(UdpDiscovery {
-            socket: UdpDiscovery::<'a, T>::open_udp_socket()?,
+            socket: UdpDiscovery::open_udp_socket()?,
             my_device,
-            device_observers: Vec::new()
+            devices: HashMap::new(),
+            sender
         });
     }
 
@@ -64,48 +83,23 @@ impl<'a, T: IObserver> UdpDiscovery<'a, T> {
         return Err("All available ports are already used")?;
     }
 
-    pub fn start_loop(&self) -> Result<(), Box<dyn Error>> {
+    pub fn start_loop(&mut self) -> Result<(), Box<dyn Error>> {
         self.socket.set_broadcast(true)?;
-        self.socket.set_nonblocking(true)?;
 
-        // loop {
-        //     let mut buf: [u8; 100] = [0; 100];
-        //     let mut result;
-        //     let sender_ip;
-        //
-        //     let received = self.socket.recv_from(&mut buf);
-        //
-        //     if let Ok(received) = received {
-        //         result = Vec::from(&buf[0..received.0]);
-        //         sender_ip = received.1;
-        //
-        //         self.manage_request(sender_ip, &mut result);
-        //     }
-        // }
-        let mut buf: [u8; 100] = [0; 100];
-        let mut result;
-        let sender_ip;
+        loop {
+            let mut buf: [u8; 100] = [0; 100];
+            let mut result;
+            let sender_ip;
 
-        let received = self.socket.recv_from(&mut buf);
+            let received = self.socket.recv_from(&mut buf);
 
-        // match received {
-        //     Ok(num_bytes) => {
-        //         println!("I received {} bytes!", num_bytes.0)
-        //     },
-        //     Err(ref err) if err.kind() != ErrorKind::WouldBlock => {
-        //         println!("Something went wrong: {}", err)
-        //     }
-        //     _ => {}
-        // }
+            if let Ok(received) = received {
+                result = Vec::from(&buf[0..received.0]);
+                sender_ip = received.1;
 
-        if let Ok(received) = received {
-            result = Vec::from(&buf[0..received.0]);
-            sender_ip = received.1;
-
-            self.manage_request(sender_ip, &mut result);
+                self.manage_request(sender_ip, &mut result);
+            }
         }
-
-        return Ok(());
     }
 
     fn convert_message_type(&self, input: &str) -> MessageType {
@@ -149,7 +143,15 @@ impl<'a, T: IObserver> UdpDiscovery<'a, T> {
         }
     }
 
-    fn manage_request(&self, sender_ip: SocketAddr, message: &mut Vec<u8>) -> Option<()> {
+    fn add_device(&mut self, device: DeviceInfo) {
+        self.devices.insert(device.id.clone(), device);
+    }
+
+    fn remove_device(&mut self, device_id: &str) {
+        self.devices.remove(device_id);
+    }
+
+    fn manage_request(&mut self, sender_ip: SocketAddr, message: &mut Vec<u8>) -> Option<()> {
         let version = get_utf8_message_part(message)?;
 
         if version == "1".to_string() {
@@ -163,8 +165,14 @@ impl<'a, T: IObserver> UdpDiscovery<'a, T> {
                 },
                 MessageType::DeviceInfo => {
                     let device = DeviceInfo::from_bytes(message, sender_ip.ip().to_string())?;
-                    self.notify_observers();
-                }
+                    self.add_device(device);
+                    self.sender.try_send(self.devices.clone()).ok();
+                },
+                MessageType::RemoveDeviceFromDiscovery => {
+                    let device_id = get_utf8_message_part(message)?;
+                    self.remove_device(&device_id);
+                    self.sender.try_send(self.devices.clone()).ok();
+                },
                 _ => return None
             }
         }

@@ -11,7 +11,10 @@
   <component name="ChangeListManager">
     <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/observer.rs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/udp_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/udp_discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
     </list>
@@ -137,6 +140,10 @@
       <workItem from="1656108923103" duration="24000" />
       <workItem from="1656111414973" duration="1877000" />
       <workItem from="1656251889850" duration="1476000" />
+      <workItem from="1656348452454" duration="1114000" />
+      <workItem from="1656409235055" duration="1513000" />
+      <workItem from="1656625657270" duration="1251000" />
+      <workItem from="1656784153409" duration="7161000" />
     </task>
     <servers />
   </component>
@@ -153,6 +160,22 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/udp_discovery.rs</url>
+          <line>172</line>
+          <option name="timeStamp" value="17" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/tests/discovery.rs</url>
+          <line>23</line>
+          <option name="timeStamp" value="19" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
