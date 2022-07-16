@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5"
+mdns-sd = "0.5.4"

@@ -6,7 +6,7 @@ use crossbeam_channel::{Receiver, Sender};
 use crate::discovery::{DeviceInfo, DiscoveryCommunication, ThreadCommunication};
 use crate::transform::{ByteConvertable, get_utf8_message_part};
 
-const DISCOVERY_PORTS: [u16; 3] = [42400, 42410, 42420];
+const DISCOVERY_PORTS: [u16; 4] = [42400, 42410, 42420, 42430];
 
 impl ByteConvertable for DeviceInfo {
     fn to_bytes(&self) -> Vec<u8> {
@@ -26,18 +26,23 @@ impl ByteConvertable for DeviceInfo {
     fn from_bytes(message: &mut Vec<u8>, ip_address: String) -> Option<DeviceInfo> {
         let id = get_utf8_message_part(message)?;
         let name = get_utf8_message_part(message)?;
-        let port = get_utf8_message_part(message)?;
+        let port = get_utf8_message_part(message)?.parse::<u16>();
         let device_type = get_utf8_message_part(message)?;
 
-        let port = port.as_bytes().first()?.to_owned();
-
-        return Some(DeviceInfo {
-            id,
-            name,
-            port,
-            device_type,
-            ip_address
-        });
+        return match port {
+            Ok(port) => {
+                Some(DeviceInfo {
+                    id,
+                    name,
+                    port,
+                    device_type,
+                    ip_address
+                })
+            }
+            Err(_) => {
+                None
+            }
+        }
     }
 }
 
@@ -57,7 +62,9 @@ pub struct UdpDiscovery<> {
 }
 
 impl UdpDiscovery {
-    pub fn new(my_device: DeviceInfo, discovery_sender: Sender<DiscoveryCommunication>, communication_receiver: Receiver<ThreadCommunication>) -> Result<UdpDiscovery, Box<dyn Error>> {
+    pub fn new(my_device: DeviceInfo,
+               discovery_sender: Sender<DiscoveryCommunication>,
+               communication_receiver: Receiver<ThreadCommunication>) -> Result<UdpDiscovery, Box<dyn Error>> {
         return Ok(UdpDiscovery {
             socket: UdpDiscovery::open_udp_socket()?,
             my_device,
@@ -76,7 +83,8 @@ impl UdpDiscovery {
             }
 
             if let Err(socket) = socket {
-                if socket.kind() != ErrorKind::AddrInUse {
+                let kind = socket.kind();
+                if kind != ErrorKind::AddrInUse {
                     return Err(socket)?;
                 }
             }
@@ -103,6 +111,7 @@ impl UdpDiscovery {
 
         let mut start = Instant::now();
         let mut look_for_devices = false;
+        let mut first_run = true;
 
         loop {
             let message = self.communication_receiver.try_recv();
@@ -113,9 +122,7 @@ impl UdpDiscovery {
                     ThreadCommunication::StopLookingForDevices => { look_for_devices = false },
                     ThreadCommunication::AnswerToLookupRequest => { self.advertise_my_device = true },
                     ThreadCommunication::StopAnsweringToLookupRequest => { self.advertise_my_device = false },
-                    ThreadCommunication::Shutdown => {
-                        return Ok(())
-                    }
+                    ThreadCommunication::Shutdown => { return Ok(()) }
                 }
             }
 
@@ -123,6 +130,8 @@ impl UdpDiscovery {
                 if start.elapsed() >= Duration::from_secs(5) {
                     start = Instant::now();
 
+                    self.send_lookup_signal();
+                } else if first_run {
                     self.send_lookup_signal();
                 }
             }
@@ -139,23 +148,25 @@ impl UdpDiscovery {
 
                 self.manage_request(sender_ip, &mut result);
             }
+
+            first_run = false;
         }
     }
 
     fn convert_message_type(&self, input: &str) -> MessageType {
         return match input {
-            "deviceLookupRequest" => MessageType::DeviceLookupRequest,
-            "deviceInfo" => MessageType::DeviceInfo,
-            "removeDeviceFromDiscovery" => MessageType::RemoveDeviceFromDiscovery,
+            "DeviceLookupRequest" => MessageType::DeviceLookupRequest,
+            "DeviceInfo" => MessageType::DeviceInfo,
+            "RemoveDeviceFromDiscovery" => MessageType::RemoveDeviceFromDiscovery,
             _ => MessageType::Unknown
         };
     }
 
     fn get_message_type_string(&self, input: MessageType) -> String {
         return match input {
-            MessageType::DeviceLookupRequest => "deviceLookupRequest".to_string(),
-            MessageType::DeviceInfo => "deviceInfo".to_string(),
-            MessageType::RemoveDeviceFromDiscovery => "removeDeviceFromDiscovery".to_string(),
+            MessageType::DeviceLookupRequest => "DeviceLookupRequest".to_string(),
+            MessageType::DeviceInfo => "DeviceInfo".to_string(),
+            MessageType::RemoveDeviceFromDiscovery => "RemoveDeviceFromDiscovery".to_string(),
             _ => "unknown".to_string()
         };
     }

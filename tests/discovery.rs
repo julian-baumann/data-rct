@@ -18,7 +18,7 @@ fn setup_foreign_discovery() -> Discovery {
         port: 52,
         device_type: "computer".to_string(),
         ip_address: "2.3.4.5".to_string()
-    });
+    }).unwrap();
 
     discovery.advertise();
 
@@ -29,8 +29,8 @@ fn setup_foreign_discovery() -> Discovery {
 fn discovery() {
     let foreign_discovery = setup_foreign_discovery();
 
-    let mut discovery = Discovery::new(get_my_device());
-    discovery.start_discovering();
+    let mut discovery = Discovery::new(get_my_device()).unwrap();
+    discovery.start_search();
 
     let start = Instant::now();
 
@@ -39,10 +39,12 @@ fn discovery() {
 
         for device in devices {
             if device.id == "39FAC7A0-E581-4676-A9C5-0F6DC667567F" {
+                discovery.stop_search();
+                discovery.stop_advertising();
                 discovery.stop().expect("Failed to stop discovery");
                 foreign_discovery.stop().expect("Failed to stop foreign discovery");
-                assert!(true);
 
+                assert!(true);
                 return;
             }
 

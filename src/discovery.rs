@@ -1,15 +1,19 @@
+mod udp_discovery;
+mod mdns_discovery;
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
 use std::thread::JoinHandle;
 use crossbeam_channel::{Receiver, Sender};
-use crate::udp_discovery::UdpDiscovery;
+use crate::discovery::mdns_discovery::MdnsDiscovery;
+use crate::discovery::udp_discovery::UdpDiscovery;
 
 #[derive(Clone, PartialEq)]
 pub struct DeviceInfo {
     pub id: String,
     pub name: String,
-    pub port: u8,
+    pub port: u16,
     pub device_type: String,
     pub ip_address: String
 }
@@ -36,25 +40,45 @@ pub enum DiscoveryCommunication {
     RemoveDevice(String)
 }
 
+trait GenericDiscovery {
+    fn new(my_device: DeviceInfo,
+           discovery_sender: Sender<DiscoveryCommunication>,
+           communication_receiver: Receiver<ThreadCommunication>) -> Result<Self, Box<dyn Error>> where Self : Sized;
+    fn start_loop(&mut self) -> Result<(), Box<dyn Error>>;
+}
+
 impl Discovery {
-    pub fn new(my_device: DeviceInfo) -> Discovery {
-        let device = my_device.clone();
+    pub fn new(my_device: DeviceInfo) -> Result<Discovery, Box<dyn Error>> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let (discovery_sender, discovery_receiver) = crossbeam_channel::unbounded();
 
-        let mut discovery = UdpDiscovery::new(device, discovery_sender.clone(), receiver.clone()).unwrap();
+        let mut udp_discovery = UdpDiscovery::new(
+            my_device.clone(),
+            discovery_sender.clone(),
+            receiver.clone()
+        )?;
+
+        let mut mdns_discovery = MdnsDiscovery::new(
+            my_device.clone(),
+            discovery_sender.clone(),
+            receiver.clone()
+        )?;
 
         let discovery_thread = thread::spawn(move || {
-            discovery.start_loop().ok();
+            udp_discovery.start_loop().ok();
         });
 
-        return Self {
+        thread::spawn(move || {
+            mdns_discovery.start_loop().ok();
+        });
+
+        return Ok(Self {
             discovery_thread,
             my_device,
             discovered_devices: HashMap::new(),
             sender,
             discovery_receiver
-        };
+        });
     }
 
     fn add_device(&mut self, device: DeviceInfo) {
@@ -73,8 +97,12 @@ impl Discovery {
         self.sender.send(ThreadCommunication::StopAnsweringToLookupRequest).ok();
     }
 
-    pub fn start_discovering(&self) {
+    pub fn start_search(&self) {
         self.sender.send(ThreadCommunication::LookForDevices).ok();
+    }
+
+    pub fn stop_search(&self) {
+        self.sender.send(ThreadCommunication::StopLookingForDevices).ok();
     }
 
     pub fn get_devices(&mut self) -> Vec<DeviceInfo> {
@@ -92,7 +120,7 @@ impl Discovery {
 
     pub fn stop(self) -> Result<(), Box<dyn Error>> {
         self.sender.send(ThreadCommunication::Shutdown)?;
-        self.discovery_thread.join().unwrap();
+        self.discovery_thread.join().ok();
 
         return Ok(());
     }

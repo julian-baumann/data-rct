@@ -11,10 +11,10 @@
   <component name="ChangeListManager">
     <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/udp_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/udp_discovery.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/udp_discovery.rs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -51,26 +51,26 @@
     <option name="showExcludedFiles" value="false" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/turingmachine/Projects/data_rct&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.tabs&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "last_opened_file_path": "/Users/turingmachine/Projects/data_rct",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "settings.editor.selected.configurable": "preferences.editor"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$/src/discovery" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Test discovery">
+  <component name="RunManager" selected="Cargo.Tests in 'tests'">
     <configuration name="Test discovery" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package data_rct --test discovery discovery -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -105,6 +105,23 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <configuration name="Tests in 'tests'" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test discovery &quot;&quot;" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Tests" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="command" value="test --package data_rct --test start_discovery" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -124,11 +141,13 @@
     </configuration>
     <list>
       <item itemvalue="Cargo.Tests" />
+      <item itemvalue="Cargo.Tests in 'tests'" />
       <item itemvalue="Cargo.Test discovery" />
       <item itemvalue="Cargo.Test start_discovery" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.Tests in 'tests'" />
         <item itemvalue="Cargo.Test discovery" />
         <item itemvalue="Cargo.Test start_discovery" />
       </list>
@@ -168,7 +187,10 @@
       <workItem from="1657541905943" duration="16210000" />
       <workItem from="1657829922651" duration="126000" />
       <workItem from="1657830059461" duration="184000" />
-      <workItem from="1657830254919" duration="6763000" />
+      <workItem from="1657830254919" duration="8502000" />
+      <workItem from="1657965038319" duration="12361000" />
+      <workItem from="1657989807857" duration="525000" />
+      <workItem from="1657990664038" duration="13383000" />
     </task>
     <servers />
   </component>
@@ -185,17 +207,6 @@
         </entry>
       </map>
     </option>
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/udp_discovery.rs</url>
-          <line>78</line>
-          <option name="timeStamp" value="23" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
