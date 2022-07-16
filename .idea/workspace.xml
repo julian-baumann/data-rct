@@ -11,10 +11,9 @@
   <component name="ChangeListManager">
     <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/observer.rs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/udp_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/udp_discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
     </list>
@@ -71,7 +70,24 @@
       <recent name="$PROJECT_DIR$/src/discovery" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Test start_discovery">
+  <component name="RunManager" selected="Cargo.Test discovery">
+    <configuration name="Test discovery" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test discovery discovery -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Test start_discovery" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package data_rct --test discovery start_discovery -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -108,10 +124,12 @@
     </configuration>
     <list>
       <item itemvalue="Cargo.Tests" />
+      <item itemvalue="Cargo.Test discovery" />
       <item itemvalue="Cargo.Test start_discovery" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.Test discovery" />
         <item itemvalue="Cargo.Test start_discovery" />
       </list>
     </recent_temporary>
@@ -144,6 +162,13 @@
       <workItem from="1656409235055" duration="1513000" />
       <workItem from="1656625657270" duration="1251000" />
       <workItem from="1656784153409" duration="7161000" />
+      <workItem from="1656842045446" duration="3954000" />
+      <workItem from="1657354536667" duration="4654000" />
+      <workItem from="1657440311037" duration="1842000" />
+      <workItem from="1657541905943" duration="16210000" />
+      <workItem from="1657829922651" duration="126000" />
+      <workItem from="1657830059461" duration="184000" />
+      <workItem from="1657830254919" duration="6763000" />
     </task>
     <servers />
   </component>
@@ -166,13 +191,8 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/src/udp_discovery.rs</url>
-          <line>172</line>
-          <option name="timeStamp" value="17" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/tests/discovery.rs</url>
-          <line>23</line>
-          <option name="timeStamp" value="19" />
+          <line>78</line>
+          <option name="timeStamp" value="23" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

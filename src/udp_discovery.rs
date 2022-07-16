@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::net::{SocketAddr, UdpSocket};
 use std::io::ErrorKind;
-use crossbeam_channel::Sender;
-use crate::discovery::DeviceInfo;
+use std::time::{Duration, Instant};
+use crossbeam_channel::{Receiver, Sender};
+use crate::discovery::{DeviceInfo, DiscoveryCommunication, ThreadCommunication};
 use crate::transform::{ByteConvertable, get_utf8_message_part};
 
 const DISCOVERY_PORTS: [u16; 3] = [42400, 42410, 42420];
@@ -51,17 +51,19 @@ enum MessageType {
 pub struct UdpDiscovery<> {
     socket: UdpSocket,
     my_device: DeviceInfo,
-    devices: HashMap<String, DeviceInfo>,
-    sender: Sender<HashMap<String, DeviceInfo>>
+    discovery_sender: Sender<DiscoveryCommunication>,
+    communication_receiver: Receiver<ThreadCommunication>,
+    advertise_my_device: bool
 }
 
 impl UdpDiscovery {
-    pub fn new(my_device: DeviceInfo, sender: Sender<HashMap<String, DeviceInfo>>) -> Result<UdpDiscovery, Box<dyn Error>> {
+    pub fn new(my_device: DeviceInfo, discovery_sender: Sender<DiscoveryCommunication>, communication_receiver: Receiver<ThreadCommunication>) -> Result<UdpDiscovery, Box<dyn Error>> {
         return Ok(UdpDiscovery {
             socket: UdpDiscovery::open_udp_socket()?,
             my_device,
-            devices: HashMap::new(),
-            sender
+            discovery_sender,
+            communication_receiver,
+            advertise_my_device: false
         });
     }
 
@@ -83,10 +85,48 @@ impl UdpDiscovery {
         return Err("All available ports are already used")?;
     }
 
+    fn send_lookup_signal(&self) {
+        let mut result: Vec<u8> = Vec::new();
+        result.append(&mut self.my_device.id.as_bytes().to_vec());
+        result.push(0x00);
+
+        let message: Vec<u8> = self.create_message_with_header(MessageType::DeviceLookupRequest, &mut result);
+
+        for port in DISCOVERY_PORTS {
+            self.socket.send_to(message.as_slice(), "255.255.255.255:".to_string() + port.to_string().as_str()).unwrap();
+        }
+    }
+
     pub fn start_loop(&mut self) -> Result<(), Box<dyn Error>> {
         self.socket.set_broadcast(true)?;
+        self.socket.set_nonblocking(true)?;
+
+        let mut start = Instant::now();
+        let mut look_for_devices = false;
 
         loop {
+            let message = self.communication_receiver.try_recv();
+
+            if let Ok(message) = message {
+                match message {
+                    ThreadCommunication::LookForDevices => { look_for_devices = true },
+                    ThreadCommunication::StopLookingForDevices => { look_for_devices = false },
+                    ThreadCommunication::AnswerToLookupRequest => { self.advertise_my_device = true },
+                    ThreadCommunication::StopAnsweringToLookupRequest => { self.advertise_my_device = false },
+                    ThreadCommunication::Shutdown => {
+                        return Ok(())
+                    }
+                }
+            }
+
+            if look_for_devices {
+                if start.elapsed() >= Duration::from_secs(5) {
+                    start = Instant::now();
+
+                    self.send_lookup_signal();
+                }
+            }
+
             let mut buf: [u8; 100] = [0; 100];
             let mut result;
             let sender_ip;
@@ -143,14 +183,6 @@ impl UdpDiscovery {
         }
     }
 
-    fn add_device(&mut self, device: DeviceInfo) {
-        self.devices.insert(device.id.clone(), device);
-    }
-
-    fn remove_device(&mut self, device_id: &str) {
-        self.devices.remove(device_id);
-    }
-
     fn manage_request(&mut self, sender_ip: SocketAddr, message: &mut Vec<u8>) -> Option<()> {
         let version = get_utf8_message_part(message)?;
 
@@ -161,17 +193,17 @@ impl UdpDiscovery {
 
             match message_type {
                 MessageType::DeviceLookupRequest => {
-                    self.answer_to_lookup_request(message, sender_ip);
+                    if self.advertise_my_device {
+                        self.answer_to_lookup_request(message, sender_ip);
+                    }
                 },
                 MessageType::DeviceInfo => {
                     let device = DeviceInfo::from_bytes(message, sender_ip.ip().to_string())?;
-                    self.add_device(device);
-                    self.sender.try_send(self.devices.clone()).ok();
+                    self.discovery_sender.try_send(DiscoveryCommunication::DeviceDiscovered(device)).ok();
                 },
                 MessageType::RemoveDeviceFromDiscovery => {
                     let device_id = get_utf8_message_part(message)?;
-                    self.remove_device(&device_id);
-                    self.sender.try_send(self.devices.clone()).ok();
+                    self.discovery_sender.try_send(DiscoveryCommunication::RemoveDevice(device_id)).ok();
                 },
                 _ => return None
             }

@@ -1,5 +1,4 @@
-use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use data_rct::discovery::{DeviceInfo, Discovery};
 
 fn get_my_device() -> DeviceInfo {
@@ -12,20 +11,44 @@ fn get_my_device() -> DeviceInfo {
     };
 }
 
+fn setup_foreign_discovery() -> Discovery {
+    let discovery = Discovery::new(DeviceInfo {
+        id: "39FAC7A0-E581-4676-A9C5-0F6DC667567F".to_string(),
+        name: "Discovery-Test Advertiser".to_string(),
+        port: 52,
+        device_type: "computer".to_string(),
+        ip_address: "2.3.4.5".to_string()
+    });
+
+    discovery.advertise();
+
+    return discovery;
+}
+
 #[test]
-fn start_discovery() {
-    let discovery = Discovery::new(get_my_device());
+fn discovery() {
+    let foreign_discovery = setup_foreign_discovery();
+
+    let mut discovery = Discovery::new(get_my_device());
+    discovery.start_discovering();
+
+    let start = Instant::now();
 
     loop {
-        thread::sleep(Duration::from_millis(2000));
         let devices = discovery.get_devices();
 
-        if let Some(devices) = devices {
-            for device in devices {
-                println!("Found {}", device.name);
+        for device in devices {
+            if device.id == "39FAC7A0-E581-4676-A9C5-0F6DC667567F" {
+                discovery.stop().expect("Failed to stop discovery");
+                foreign_discovery.stop().expect("Failed to stop foreign discovery");
+                assert!(true);
+
+                return;
             }
-        } else {
-            println!("Found nothing");
+
+            if start.elapsed() >= Duration::from_secs(20) {
+                assert!(false, "No devices were found in 20s");
+            }
         }
     }
 }
