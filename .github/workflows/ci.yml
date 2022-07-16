@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    name: Build and Test
+    name: Build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -20,6 +20,15 @@ jobs:
 
     - name: Build
       run: cargo build --verbose
+
+  test:
+    name: Run Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+    steps:
+    - uses: actions/checkout@v3
 
     - name: Run tests
       run: cargo test --verbose
