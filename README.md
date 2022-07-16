@@ -1,6 +1,8 @@
 # DataRCT
  -- Data Transfer Regardless the Connection Type --
 
+[![CI](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml/badge.svg)](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml)
+
 
 DataRCT is a protocol, that can be used to transfer data offline, decentralized and without the need to care about the connection type.
 
