@@ -1,5 +1,5 @@
 # DataRCT
- -- Data Transfer Regardless the Connection Type --
+ -- Data Transmission Regardless the Connection Type --
 
 [![CI](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml/badge.svg)](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml)
 
