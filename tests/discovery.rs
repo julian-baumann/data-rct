@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 use data_rct::discovery::{DeviceInfo, Discovery};
 
+const FOREIGN_DEVICE_ID: &str = "39FAC7A0-E581-4676-A9C5-0F6DC667567F";
+
 fn get_my_device() -> DeviceInfo {
     return DeviceInfo {
         id: "B53CCB62-7DAB-4403-9FEB-F336834DB41F".to_string(),
@@ -13,7 +15,7 @@ fn get_my_device() -> DeviceInfo {
 
 fn setup_foreign_discovery() -> Discovery {
     let discovery = Discovery::new(DeviceInfo {
-        id: "39FAC7A0-E581-4676-A9C5-0F6DC667567F".to_string(),
+        id: FOREIGN_DEVICE_ID.to_string(),
         name: "Discovery-Test Advertiser".to_string(),
         port: 52,
         device_type: "computer".to_string(),
@@ -38,7 +40,7 @@ fn discovery() {
         let devices = discovery.get_devices();
 
         for device in devices {
-            if device.id == "39FAC7A0-E581-4676-A9C5-0F6DC667567F" {
+            if device.id == FOREIGN_DEVICE_ID {
                 discovery.stop_search();
                 discovery.stop_advertising();
                 discovery.stop().expect("Failed to stop discovery");

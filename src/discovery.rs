@@ -19,8 +19,8 @@ pub struct DeviceInfo {
 }
 
 pub struct Discovery {
-    discovery_thread: JoinHandle<()>,
     pub my_device: DeviceInfo,
+    discovery_thread: JoinHandle<()>,
     discovered_devices: HashMap<String, DeviceInfo>,
     sender: Sender<ThreadCommunication>,
     discovery_receiver: Receiver<DiscoveryCommunication>,
@@ -40,7 +40,7 @@ pub enum DiscoveryCommunication {
     RemoveDevice(String)
 }
 
-trait GenericDiscovery {
+trait PeripheralDiscovery {
     fn new(my_device: DeviceInfo,
            discovery_sender: Sender<DiscoveryCommunication>,
            communication_receiver: Receiver<ThreadCommunication>) -> Result<Self, Box<dyn Error>> where Self : Sized;

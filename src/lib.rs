@@ -1,4 +1,8 @@
-pub mod transform;
-pub mod discovery;
+extern crate core;
 
-const PROTOCOL_VERSION: &str = "1";
+mod transform;
+pub mod discovery;
+pub mod transmission;
+mod encryption;
+
+const PROTOCOL_VERSION: u8 = 0x01;

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use crossbeam_channel::{Receiver, Sender};
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-use crate::discovery::{DeviceInfo, DiscoveryCommunication, GenericDiscovery, ThreadCommunication};
+use crate::discovery::{DeviceInfo, DiscoveryCommunication, PeripheralDiscovery, ThreadCommunication};
 use crate::PROTOCOL_VERSION;
 
 pub struct MdnsDiscovery {
@@ -42,7 +42,7 @@ impl MdnsDiscovery {
     }
 }
 
-impl GenericDiscovery for MdnsDiscovery {
+impl PeripheralDiscovery for MdnsDiscovery {
     fn new(my_device: DeviceInfo,
                discovery_sender: Sender<DiscoveryCommunication>,
                communication_receiver: Receiver<ThreadCommunication>) -> Result<MdnsDiscovery, Box<dyn Error>> {
