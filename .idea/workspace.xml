@@ -20,11 +20,14 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deps/x25519-dalek/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/deps/x25519-dalek/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/discovery/mdns_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery/mdns_discovery.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/discovery/mdns_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery/mdns_sd.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/discovery/udp_discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery/udp.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/encryption.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/encryption.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/transmission/tcp_transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission/tcp.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/transmission.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,7 +57,7 @@
     <option name="stateVersion" value="1" />
   </component>
   <component name="ProjectId" id="29TXZxiZyShSXc5L1zhJ2AZokts" />
-  <component name="ProjectLevelVcsManager">
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <ConfirmationsSetting value="1" id="Add" />
   </component>
   <component name="ProjectViewState">
@@ -77,8 +80,9 @@
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;file.status.colors&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -88,9 +92,9 @@
       <recent name="$PROJECT_DIR$/src/discovery" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Test discovery">
-    <configuration name="Test discovery" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package data_rct --test discovery discovery -- --exact" />
+  <component name="RunManager" selected="Cargo.Test stream_encryption">
+    <configuration name="Test encryption::stream_encryption" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --lib encryption::stream_encryption -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <option name="channel" value="DEFAULT" />
       <option name="requiredFeatures" value="true" />
@@ -106,8 +110,42 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Test transform::test_truncate" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package data_rct --lib transform::test_truncate -- --exact" />
+    <configuration name="Test helper::memory_stream" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test encryption helper::memory_stream -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test helper::memory_stream_test" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test encryption helper::memory_stream_test -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test stream_encryption" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test encryption stream_encryption -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <option name="channel" value="DEFAULT" />
       <option name="requiredFeatures" value="true" />
@@ -124,7 +162,7 @@
       </method>
     </configuration>
     <configuration name="Tests in 'tests'" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package data_rct --test discovery --test transmission &quot;&quot;" />
+      <option name="command" value="test --package data_rct --test encryption --test discovery --test transmission &quot;&quot;" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <option name="channel" value="DEFAULT" />
       <option name="requiredFeatures" value="true" />
@@ -140,10 +178,20 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <list>
+      <item itemvalue="Cargo.Test encryption::stream_encryption" />
+      <item itemvalue="Cargo.Test helper::memory_stream" />
+      <item itemvalue="Cargo.Test helper::memory_stream_test" />
+      <item itemvalue="Cargo.Test stream_encryption" />
+      <item itemvalue="Cargo.Tests in 'tests'" />
+    </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.Test discovery" />
-        <item itemvalue="Cargo.Test transform::test_truncate" />
+        <item itemvalue="Cargo.Test stream_encryption" />
+        <item itemvalue="Cargo.Tests in 'tests'" />
+        <item itemvalue="Cargo.Test helper::memory_stream_test" />
+        <item itemvalue="Cargo.Test helper::memory_stream" />
+        <item itemvalue="Cargo.Test encryption::stream_encryption" />
       </list>
     </recent_temporary>
   </component>
@@ -217,7 +265,17 @@
       <workItem from="1667125067304" duration="4068000" />
       <workItem from="1667137398029" duration="10822000" />
       <workItem from="1667331840430" duration="6394000" />
-      <workItem from="1667589999132" duration="5092000" />
+      <workItem from="1667589999132" duration="6392000" />
+      <workItem from="1667671623720" duration="2577000" />
+      <workItem from="1667683103813" duration="2531000" />
+      <workItem from="1668115510044" duration="26878000" />
+      <workItem from="1669110314445" duration="721000" />
+      <workItem from="1669404096848" duration="2289000" />
+      <workItem from="1669640716393" duration="1146000" />
+      <workItem from="1670530972390" duration="82000" />
+      <workItem from="1670531853241" duration="607000" />
+      <workItem from="1670534708222" duration="1227000" />
+      <workItem from="1670535948421" duration="431000" />
     </task>
     <servers />
   </component>
@@ -234,6 +292,11 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <ignored-roots>
+      <path value="$PROJECT_DIR$/deps/x25519-dalek" />
+    </ignored-roots>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

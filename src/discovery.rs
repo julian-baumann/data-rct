@@ -1,13 +1,13 @@
-mod udp_discovery;
-mod mdns_discovery;
+mod udp;
+mod mdns_sd;
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::thread;
 use std::thread::JoinHandle;
 use crossbeam_channel::{Receiver, Sender};
-use crate::discovery::mdns_discovery::MdnsDiscovery;
-use crate::discovery::udp_discovery::UdpDiscovery;
+use crate::discovery::mdns_sd::MdnsSdDiscovery;
+use crate::discovery::udp::UdpDiscovery;
 
 #[derive(Clone, PartialEq)]
 pub struct DeviceInfo {
@@ -58,7 +58,7 @@ impl Discovery {
             receiver.clone()
         )?;
 
-        let mut mdns_discovery = MdnsDiscovery::new(
+        let mut mdns_discovery = MdnsSdDiscovery::new(
             my_device.clone(),
             discovery_sender.clone(),
             receiver.clone()

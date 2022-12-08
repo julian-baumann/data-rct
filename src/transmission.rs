@@ -1,14 +1,14 @@
 use std::error::Error;
 use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
-use crate::transmission::tcp_transmission::{TcpTransmissionClient, TcpTransmissionListener};
+use crate::transmission::tcp::{TcpTransmissionClient, TcpTransmissionListener};
 use std::net::{ToSocketAddrs};
 use crate::PROTOCOL_VERSION;
 use uuid::Uuid;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use rand_core::OsRng;
 
-mod tcp_transmission;
+mod tcp;
 
 
 const PUBLIC_KEY_SIZE: usize = 32;

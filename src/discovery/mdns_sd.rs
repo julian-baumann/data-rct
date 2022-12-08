@@ -5,7 +5,7 @@ use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use crate::discovery::{DeviceInfo, DiscoveryCommunication, PeripheralDiscovery, ThreadCommunication};
 use crate::PROTOCOL_VERSION;
 
-pub struct MdnsDiscovery {
+pub struct MdnsSdDiscovery {
     mdns_daemon: ServiceDaemon,
     my_device: DeviceInfo,
     discovery_sender: Sender<DiscoveryCommunication>,
@@ -14,7 +14,7 @@ pub struct MdnsDiscovery {
 
 const SERVICE_NAME: &str = "_data-rct._tcp.local.";
 
-impl MdnsDiscovery {
+impl MdnsSdDiscovery {
     fn advertise(&self) {
         let mut properties = HashMap::new();
         properties.insert("deviceId".to_string(), self.my_device.id.to_string());
@@ -42,11 +42,11 @@ impl MdnsDiscovery {
     }
 }
 
-impl PeripheralDiscovery for MdnsDiscovery {
+impl PeripheralDiscovery for MdnsSdDiscovery {
     fn new(my_device: DeviceInfo,
                discovery_sender: Sender<DiscoveryCommunication>,
-               communication_receiver: Receiver<ThreadCommunication>) -> Result<MdnsDiscovery, Box<dyn Error>> {
-        return Ok(MdnsDiscovery {
+               communication_receiver: Receiver<ThreadCommunication>) -> Result<MdnsSdDiscovery, Box<dyn Error>> {
+        return Ok(MdnsSdDiscovery {
             mdns_daemon: ServiceDaemon::new()?,
             my_device,
             discovery_sender,

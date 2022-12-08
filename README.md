@@ -9,7 +9,7 @@ This protocol is designed so that it can be used without having to know which tr
 
 ## Encryption
 
-> I am by no means a security expert. I did my best to secure the stream. If you may find any vulnerabilities or attack surfaces, let me know
+> I am not a security expert by any means. I've done my best to secure the stream. Let me know if you find any vulnerabilities or attack surfaces
 
 The network stream is encrypted and authorized using the `XChaCha20Poly1305` algorithm ([using this crate](https://docs.rs/chacha20poly1305/0.10.1/chacha20poly1305/)).
 
@@ -20,15 +20,15 @@ The network stream is encrypted and authorized using the `XChaCha20Poly1305` alg
 ⏳ = Working on it  <br />
 🗓 = Planned <br />
 
-| Goal | State |
-| --- | ----------- |
-| UDP Discovery | ✅ |
-| mDNS-SD Discovery | ✅ |
-| BLE Discovery | 🗓 |
-| TCP Transmission | ✅ |
-| BLE Transmission | 🗓 |
-| Stream encryption | ⏳ |
-| Authorization | 🗓 |
-| FFI Bindings for Swift | 🗓 |
-| FFI Bindings for Kotlin | 🗓 |
-| FFI Bindings for C# | 🗓 |
+| Goal                    | State |
+|-------------------------|-------|
+| UDP Discovery           | ✅     |
+| mDNS-SD Discovery       | ✅     |
+| BLE Discovery           | 🗓    |
+| TCP Transmission        | ⏳     |
+| BLE Transmission        | 🗓    |
+| Stream encryption       | ⏳     |
+| Authorization           | 🗓    |
+| FFI Bindings for Swift  | 🗓    |
+| FFI Bindings for Kotlin | 🗓    |
+| FFI Bindings for C#     | 🗓    |
