@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::error::Error;
 use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
