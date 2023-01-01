@@ -76,7 +76,7 @@ pub fn memory_stream() {
 
     assert_eq!(result.as_slice(), &[2u8, 7u8, 9u8]);
 
-    // ===
+    // ====
 
     memory_stream.write(&[2u8, 7u8, 9u8])
         .expect("Failed to write memory_stream");

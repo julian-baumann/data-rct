@@ -94,8 +94,8 @@ pub fn large_stream_encryption() {
 
     assert!(written_bytes > 0);
 
-    let mut decrypted_buffer = Vec::new();
-    let read_bytes = encrypted_stream.read_to_end(&mut decrypted_buffer)
+    let mut decrypted_buffer: [u8; 100] = [0; 100];
+    let read_bytes = encrypted_stream.read_last(&mut decrypted_buffer)
         .expect("Error reading memory_stream");
 
     assert_eq!(write_data, &decrypted_buffer[..read_bytes]);
