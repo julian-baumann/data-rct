@@ -17,10 +17,6 @@
   <component name="ChangeListManager">
     <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/encryption.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/encryption.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/encryption.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/encryption.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/helper.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -135,6 +131,23 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <configuration name="Test memory_stream" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test helper memory_stream -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Test stream_encryption" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package data_rct --test encryption stream_encryption -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -152,34 +165,18 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Tests in 'tests'" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package data_rct --test encryption --test discovery --test transmission &quot;&quot;" />
-      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-      <option name="channel" value="DEFAULT" />
-      <option name="requiredFeatures" value="true" />
-      <option name="allFeatures" value="false" />
-      <option name="emulateTerminal" value="false" />
-      <option name="withSudo" value="false" />
-      <option name="buildTarget" value="REMOTE" />
-      <option name="backtrace" value="SHORT" />
-      <envs />
-      <option name="isRedirectInput" value="false" />
-      <option name="redirectInputPath" value="" />
-      <method v="2">
-        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
-      </method>
-    </configuration>
     <list>
       <item itemvalue="Cargo.Test encryption::test_enc" />
+      <item itemvalue="Cargo.Test memory_stream" />
       <item itemvalue="Cargo.Test discovery" />
       <item itemvalue="Cargo.Test large_stream_encryption" />
       <item itemvalue="Cargo.Test stream_encryption" />
-      <item itemvalue="Cargo.Tests in 'tests'" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Test large_stream_encryption" />
         <item itemvalue="Cargo.Test stream_encryption" />
+        <item itemvalue="Cargo.Test memory_stream" />
         <item itemvalue="Cargo.Test encryption::test_enc" />
         <item itemvalue="Cargo.Test discovery" />
       </list>
@@ -276,7 +273,7 @@
       <workItem from="1672851019510" duration="253000" />
       <workItem from="1672862989056" duration="19000" />
       <workItem from="1672863010666" duration="3330000" />
-      <workItem from="1672875132474" duration="4144000" />
+      <workItem from="1672875132474" duration="4942000" />
     </task>
     <servers />
   </component>
@@ -298,22 +295,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/deps/x25519-dalek" />
     </ignored-roots>
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/tests/helper.rs</url>
-          <line>55</line>
-          <option name="timeStamp" value="38" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/tests/helper.rs</url>
-          <line>60</line>
-          <option name="timeStamp" value="39" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
