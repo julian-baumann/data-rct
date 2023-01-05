@@ -106,9 +106,9 @@ impl Discovery {
     }
 
     pub fn get_devices(&mut self) -> Vec<DeviceInfo> {
-        let new_devices = self.discovery_receiver.try_recv().ok();
+        let new_devices = self.discovery_receiver.try_recv();
 
-        if let Some(new_devices) = new_devices {
+        if let Ok(new_devices) = new_devices {
             match new_devices {
                 DiscoveryCommunication::DeviceDiscovered(device) => { self.add_device(device) }
                 DiscoveryCommunication::RemoveDevice(device_id) => { self.remove_device(&device_id) }

@@ -1,9 +1,9 @@
-use std::io::{Cursor, Read, Write};
-use chacha20::cipher::{KeyIvInit, StreamCipher};
-use chacha20::XChaCha20;
-use rand_core::OsRng;
+use std::borrow::BorrowMut;
+use std::io::{Read, Write};
+use chacha20::cipher::StreamCipherSeek;
+use rand_core::{OsRng, RngCore};
 use x25519_dalek::{EphemeralSecret, PublicKey};
-use data_rct::encryption::{EncryptedStream, generate_nonce};
+use data_rct::encryption::{EncryptedStream, generate_key, generate_nonce};
 use crate::helper::MemoryStream;
 
 mod helper;
@@ -26,16 +26,11 @@ pub fn diffie_hellman() {
 
 #[test]
 pub fn stream_encryption() {
-    let key: [u8; 32] = [
-        0x4b, 0x62, 0xe9, 0xd4, 0xd1, 0xb4, 0x67, 0x3c, 0x5a, 0xd2, 0x26, 0x91, 0x95, 0x7d,
-        0x6a, 0xf5, 0xc3, 0x1b, 0x64, 0x21, 0xe0, 0xea, 0x01, 0xd4, 0x2c, 0xa4, 0x16, 0x9e,
-        0x79, 0x18, 0xba, 0x1d,
-    ];
-
+    let key = generate_key();
     let nonce = generate_nonce();
 
     let mut memory_stream = MemoryStream::new();
-    let mut encrypted_stream = EncryptedStream::new(&key, &nonce, Box::new(&mut memory_stream));
+    let mut encrypted_stream = EncryptedStream::new(key.as_slice(), nonce.as_slice(), Box::new(&mut memory_stream));
 
     let write_data = &vec![1, 2, 3];
 
@@ -44,20 +39,58 @@ pub fn stream_encryption() {
 
     assert!(written_bytes > 0);
 
-    // let mut encrypted_gibberish = Vec::new();
-    // encrypted_stream.raw_stream.read_to_end(&mut encrypted_gibberish)
-    //     .expect("Error reading memory_stream");
-    //
-    // assert_ne!(write_data, &encrypted_gibberish);
-    //
-    // let written_bytes = encrypted_stream.write(write_data)
-    //     .expect("Something went wrong, while trying to write to EncryptedStream");
-    //
-    // assert!(written_bytes > 0);
+    encrypted_stream.raw_stream.downcast_mut::<MemoryStream>().unwrap().set_position(0);
+    encrypted_stream.cipher.seek(0);
 
-    let mut decrypted_buffer = [0u8, 19];
-    encrypted_stream.read_last(&mut decrypted_buffer)
+    let mut encrypted_gibberish = Vec::new();
+    encrypted_stream.raw_stream.read_to_end(&mut encrypted_gibberish)
         .expect("Error reading memory_stream");
 
-    assert_eq!(write_data, &decrypted_buffer);
+    assert_ne!(write_data, &encrypted_gibberish);
+
+    encrypted_stream.raw_stream.downcast_mut::<MemoryStream>().unwrap().set_position(0);
+    encrypted_stream.cipher.seek(0);
+
+    let mut decrypted = Vec::new();
+    encrypted_stream.read_to_end(&mut decrypted)
+        .expect("Error decrypting memory_stream");
+
+    assert_eq!(write_data, &decrypted);
+}
+
+
+#[test]
+pub fn large_stream_encryption() {
+    let key = generate_key();
+    let nonce = generate_nonce();
+
+    let mut memory_stream = MemoryStream::new();
+    let mut encrypted_stream = EncryptedStream::new(key.as_slice(), nonce.as_slice(), Box::new(memory_stream.borrow_mut()));
+
+    let mut write_data: [u8; 100000] = [0; 100000];
+    let rng = &mut OsRng;
+    rng.fill_bytes(&mut write_data);
+
+    let write_data = write_data.as_slice();
+
+    let written_bytes = encrypted_stream.write(write_data)
+        .expect("Something went wrong, while trying to write to EncryptedStream");
+
+    assert!(written_bytes > 0);
+    encrypted_stream.raw_stream.downcast_mut::<MemoryStream>().unwrap().set_position(0);
+    encrypted_stream.cipher.seek(0);
+
+    let mut encrypted_gibberish = Vec::new();
+    encrypted_stream.raw_stream.read_to_end(&mut encrypted_gibberish)
+        .expect("Error reading memory_stream");
+
+    assert_ne!(write_data, &encrypted_gibberish);
+    encrypted_stream.raw_stream.downcast_mut::<MemoryStream>().unwrap().set_position(0);
+    encrypted_stream.cipher.seek(0);
+
+    let mut decrypted_buffer: [u8; 100000] = [0; 100000];
+    let read_bytes = encrypted_stream.read(&mut decrypted_buffer)
+        .expect("Something went wrong, while trying to decrypt the stream");
+
+    assert_eq!(write_data, &decrypted_buffer[..read_bytes]);
 }

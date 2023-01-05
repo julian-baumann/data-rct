@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
 use crate::transmission::tcp::{TcpTransmissionClient, TcpTransmissionListener};
 use std::net::{ToSocketAddrs};
+use downcast_rs::{DowncastSync, impl_downcast};
 use crate::PROTOCOL_VERSION;
 use uuid::Uuid;
 use x25519_dalek::{EphemeralSecret, PublicKey};
@@ -18,7 +19,8 @@ trait DataTransmission {
     fn accept(&self) -> Option<Box<dyn Stream>>;
 }
 
-pub trait Stream: Read + Write {}
+pub trait Stream: Read + Write + DowncastSync {}
+impl_downcast!(sync Stream);
 
 pub enum TransmissionMessageTunnel {
     ReceivedTransfer(Box<dyn Stream>)

@@ -1,103 +1,63 @@
-// -- Based on https://kerkour.com/rust-file-encryption --
+use std::{io};
+use std::io::{Error, Read, Write};
+use std::io::ErrorKind::Other;
+use std::iter::repeat;
+use chacha20poly1305::AeadCore;
+use chacha20poly1305::KeyInit;
+use chacha20poly1305::XChaCha20Poly1305;
+use rand_core::{OsRng};
+use chacha20::{XChaCha20};
+use chacha20::cipher::{KeyIvInit, StreamCipher};
 
-use std::io;
-use std::io::{Error, ErrorKind, Read, Write};
-use anyhow::anyhow;
-use chacha20::cipher::KeyIvInit;
-use chacha20::XChaCha20;
-use chacha20poly1305::{aead::{stream}, ChaChaPoly1305, KeyInit, XChaCha20Poly1305};
-use chacha20poly1305::aead::stream::{Decryptor, Encryptor, StreamBE32};
-use chacha20poly1305::consts::U24;
-use rand_core::{OsRng, RngCore};
 use crate::transmission::Stream;
 
-pub fn generate_nonce() -> [u8; 19] {
-    let mut nonce = [0u8; 19];
-    OsRng.fill_bytes(&mut nonce);
 
-    return nonce;
+pub fn generate_key() -> Vec<u8> {
+    let key = XChaCha20Poly1305::generate_key(&mut OsRng);
+
+    return key.to_vec();
+}
+
+pub fn generate_nonce() -> Vec<u8> {
+    let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+    return nonce.to_vec();
 }
 
 pub struct EncryptedStream<'a> {
-    encryptor: Encryptor<ChaChaPoly1305<XChaCha20, U24>, StreamBE32<ChaChaPoly1305<XChaCha20, U24>>>,
-    decryptor: Decryptor<ChaChaPoly1305<XChaCha20, U24>, StreamBE32<ChaChaPoly1305<XChaCha20, U24>>>,
+    pub cipher: XChaCha20,
     pub raw_stream: Box<&'a mut dyn Stream>
 }
 
 impl<'a> EncryptedStream<'a> {
-    pub fn new(key: &[u8; 32], nonce: &[u8; 19], stream: Box<&'a mut dyn Stream>) -> Self {
-        let encryptor = stream::EncryptorBE32::from_aead(XChaCha20Poly1305::new(key.into()), nonce.into());
-        let decryptor = stream::DecryptorBE32::from_aead(XChaCha20Poly1305::new(key.into()), nonce.into());
+    pub fn new(key: &[u8], nonce: &'a [u8], stream: Box<&'a mut dyn Stream>) -> Self {
+        let cipher = XChaCha20::new(key.into(), nonce.into());
 
         Self {
-            encryptor,
-            decryptor,
+            cipher,
             raw_stream: stream
         }
-    }
-
-    pub fn write_last(mut self, write_buffer: &[u8]) -> io::Result<usize> {
-        let ciphertext = self.encryptor.encrypt_last(write_buffer);
-
-        return match ciphertext {
-            Ok(ciphertext) => self.raw_stream.write(&ciphertext),
-            Err(error) => Err(Error::new(ErrorKind::Other, format!("An error occurred while trying to encrypt stream buffer {}", error)))
-        }
-    }
-
-    pub fn read_last(mut self, mut read_buffer: &mut [u8]) -> io::Result<usize> {
-        // let mut buffer = Vec::new();
-        let mut buffer = [0u8; 19];
-        let read_bytes = self.raw_stream.read(&mut buffer);
-
-        if let Ok(read_bytes) = read_bytes {
-            if read_bytes <= 0 {
-                return Ok(read_bytes);
-            }
-
-            let decrypted_message_part = self.decryptor.decrypt_last(buffer.as_slice());
-
-            if let Ok(decrypted_message_part) = decrypted_message_part {
-                let result = read_buffer.write(decrypted_message_part.as_slice());
-
-                if let Err(error) = result {
-                    return Err(error);
-                }
-
-                return Ok(read_bytes);
-            } else if let Err(error) = decrypted_message_part {
-                return Err(Error::new(ErrorKind::Other, format!("An error occurred while trying to decrypt stream buffer {error}")));
-            }
-        }
-
-        return Ok(0);
     }
 }
 
 impl<'a> Read for EncryptedStream<'a> {
-    fn read(&mut self, mut read_buffer: &mut [u8]) -> io::Result<usize> {
-        // let mut buffer = Vec::new();
-        let mut buffer = [0u8; 19];
+    fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
+        let mut buffer: Vec<u8> = repeat(0).take(read_buffer.len()).collect();
         let read_bytes = self.raw_stream.read(&mut buffer);
 
         if let Ok(read_bytes) = read_bytes {
-            if read_bytes <= 0 {
+            if read_bytes == 0 {
                 return Ok(read_bytes);
             }
 
-            let decrypted_message_part = self.decryptor.decrypt_next(buffer.as_slice());
+            let sized_buffer = &buffer[..read_bytes];
 
-            if let Ok(decrypted_message_part) = decrypted_message_part {
-                let result = read_buffer.write(decrypted_message_part.as_slice());
+            let decrypted_message_part = self.cipher.apply_keystream_b2b(sized_buffer, &mut read_buffer[..read_bytes]);
 
-                if let Err(error) = result {
-                    return Err(error);
-                }
-
-                return Ok(read_bytes);
-
-            } else if let Err(error) = decrypted_message_part {
-                return Err(Error::new(ErrorKind::Other, format!("An error occurred while trying to decrypt stream buffer {error}")));
+            return if let Err(error) = decrypted_message_part {
+                Err(Error::new(Other, format!("{}", error.to_string())))
+            } else {
+                Ok(read_bytes)
             }
         }
 
@@ -107,12 +67,14 @@ impl<'a> Read for EncryptedStream<'a> {
 
 impl<'a> Write for EncryptedStream<'a> {
     fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
-        let ciphertext = self.encryptor.encrypt_next(write_buffer);
+        let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
+        let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);
 
-        return match ciphertext {
-            Ok(ciphertext) => self.raw_stream.write(&ciphertext),
-            Err(error) => Err(Error::new(ErrorKind::Other, format!("An error occurred while trying to encrypt stream buffer {}", error)))
+        if let Ok(()) = ciphertext {
+            return self.raw_stream.write(&buffer);
         }
+
+        return Ok(0);
     }
 
     fn flush(&mut self) -> io::Result<()> {
