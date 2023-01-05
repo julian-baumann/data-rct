@@ -27,7 +27,7 @@ The network stream is encrypted and authorized using the `XChaCha20Poly1305` alg
 | BLE Discovery           | 🗓    |
 | TCP Transmission        | ⏳     |
 | BLE Transmission        | 🗓    |
-| Stream encryption       | ⏳     |
+| Stream encryption       | ✅     |
 | Authorization           | 🗓    |
 | FFI Bindings for Swift  | 🗓    |
 | FFI Bindings for Kotlin | 🗓    |
