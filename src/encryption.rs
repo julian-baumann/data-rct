@@ -9,29 +9,31 @@ use rand_core::{OsRng};
 use chacha20::{XChaCha20};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 
-use crate::transmission::Stream;
+use crate::transmission::{Stream, StreamReadExtension};
 
 
-pub fn generate_key() -> Vec<u8> {
+pub fn generate_key() -> [u8; 32] {
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
 
-    return key.to_vec();
+    return key.into();
 }
 
-pub fn generate_nonce() -> Vec<u8> {
+pub fn generate_nonce() -> [u8; 24] {
     let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
 
-    return nonce.to_vec();
+    return nonce.into();
 }
 
-pub struct EncryptedStream<'a> {
+pub struct EncryptedStream {
     pub cipher: XChaCha20,
-    pub raw_stream: Box<&'a mut dyn Stream>
+    pub raw_stream: Box<dyn Stream>
 }
 
-impl<'a> EncryptedStream<'a> {
-    pub fn new(key: &[u8], nonce: &'a [u8], stream: Box<&'a mut dyn Stream>) -> Self {
-        let cipher = XChaCha20::new(key.into(), nonce.into());
+impl StreamReadExtension for EncryptedStream {}
+
+impl<'a> EncryptedStream {
+    pub fn new(key: [u8; 32], nonce: [u8; 24], stream: Box<dyn Stream>) -> Self {
+        let cipher = XChaCha20::new(&key.into(), &nonce.into());
 
         Self {
             cipher,
@@ -40,7 +42,7 @@ impl<'a> EncryptedStream<'a> {
     }
 }
 
-impl<'a> Read for EncryptedStream<'a> {
+impl<'a> Read for EncryptedStream {
     fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(read_buffer.len()).collect();
         let read_bytes = self.raw_stream.read(&mut buffer);
@@ -65,7 +67,7 @@ impl<'a> Read for EncryptedStream<'a> {
     }
 }
 
-impl<'a> Write for EncryptedStream<'a> {
+impl<'a> Write for EncryptedStream {
     fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
         let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);

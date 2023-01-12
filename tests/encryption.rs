@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io::{Read, Write};
 use chacha20::cipher::StreamCipherSeek;
 use rand_core::{OsRng, RngCore};
@@ -29,8 +28,8 @@ pub fn stream_encryption() {
     let key = generate_key();
     let nonce = generate_nonce();
 
-    let mut memory_stream = MemoryStream::new();
-    let mut encrypted_stream = EncryptedStream::new(key.as_slice(), nonce.as_slice(), Box::new(&mut memory_stream));
+    let memory_stream = MemoryStream::new();
+    let mut encrypted_stream = EncryptedStream::new(key as [u8; 32], nonce as [u8; 24], Box::new(memory_stream));
 
     let write_data = &vec![1, 2, 3];
 
@@ -64,8 +63,8 @@ pub fn large_stream_encryption() {
     let key = generate_key();
     let nonce = generate_nonce();
 
-    let mut memory_stream = MemoryStream::new();
-    let mut encrypted_stream = EncryptedStream::new(key.as_slice(), nonce.as_slice(), Box::new(memory_stream.borrow_mut()));
+    let memory_stream = MemoryStream::new();
+    let mut encrypted_stream = EncryptedStream::new(key as [u8; 32], nonce as [u8; 24], Box::new(memory_stream));
 
     let mut write_data: [u8; 100000] = [0; 100000];
     let rng = &mut OsRng;

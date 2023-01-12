@@ -2,13 +2,14 @@ use std::error::Error;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use crate::transmission::{DataTransmission, Stream};
+use crate::transmission::{DataTransmission, Stream, StreamReadExtension};
 
 pub struct TcpTransmissionListener {
     pub port: u16,
     listener: TcpListener
 }
 
+impl StreamReadExtension for TcpStream {}
 impl Stream for TcpStream {}
 
 impl DataTransmission for TcpTransmissionListener {
@@ -39,6 +40,7 @@ impl DataTransmission for TcpTransmissionListener {
 
 // ==== listener ====
 
+impl StreamReadExtension for TcpTransmissionClient {}
 impl Stream for TcpTransmissionClient {}
 
 pub struct TcpTransmissionClient {
