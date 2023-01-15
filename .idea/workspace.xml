@@ -15,13 +15,7 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/helper.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/transmission.rs" afterDir="false" />
-    </list>
+    <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -199,7 +193,7 @@
       <workItem from="1673295929088" duration="7780000" />
       <workItem from="1673463723530" duration="6110000" />
       <workItem from="1673799917419" duration="1371000" />
-      <workItem from="1673801306291" duration="7039000" />
+      <workItem from="1673801306291" duration="7231000" />
     </task>
     <servers />
   </component>
