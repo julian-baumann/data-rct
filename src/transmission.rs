@@ -18,7 +18,7 @@ mod tcp;
 
 
 const PUBLIC_KEY_SIZE: usize = 32;
-const UUID_LENGTH: usize = 36;
+const UUID_LENGTH: usize = 16;
 const NONCE_LENGTH: usize = 24;
 
 trait DataTransmission {
@@ -157,9 +157,14 @@ impl Transmission {
                 }
             }
 
-            let uuid = match connection.read_string(UUID_LENGTH, AcceptErrors::InvalidUUID) {
+            let uuid = match connection.read_and_get_value(UUID_LENGTH, AcceptErrors::InvalidUUID) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
+            };
+
+            let uuid = match Uuid::from_slice(uuid.as_slice()) {
+                Ok(value) => value,
+                Err(_) => return Some(Err(AcceptErrors::InvalidUUID))
             };
 
             let foreign_public_key = match connection.read_and_get_value(PUBLIC_KEY_SIZE, AcceptErrors::InvalidForeignPublicKey) {
@@ -212,7 +217,7 @@ impl Transmission {
             };
 
             return Some(Ok(TransmissionRequest {
-                uuid,
+                uuid: uuid.to_string(),
                 sender_id,
                 sender_name,
                 data_stream: encrypted_stream
@@ -232,10 +237,10 @@ impl Transmission {
 
 
         let connection = TcpTransmissionClient::connect(socket_address)?;
-        return self.connect(Box::new(connection), recipient);
+        return self.connect(Box::new(connection));
     }
 
-    pub fn connect(&self, mut connection: Box<dyn Stream>, recipient: &DeviceInfo) -> Result<EncryptedStream, Box<dyn Error>>  {
+    pub fn connect(&self, mut connection: Box<dyn Stream>) -> Result<EncryptedStream, Box<dyn Error>>  {
         let transfer_id = Uuid::new_v4();
 
         // Send core header information
@@ -267,11 +272,15 @@ impl Transmission {
         let mut encrypted_stream = self.encrypt_stream(session_secret_key, foreign_public_key_buffer, nonce, connection)?;
 
         // Send my id.
-        encrypted_stream.write(&[recipient.id.len() as u8])?;
-        encrypted_stream.write(recipient.id.as_bytes())?;
+        encrypted_stream.write(&[self.device_info.id.len() as u8])?;
+        encrypted_stream.write(self.device_info.id.as_bytes())?;
 
         // Since the sender name can vary in length, send the length beforehand, so the other end knows what to expect
-        let sender_name_in_bytes = self.device_info.name[..50].as_bytes();
+        let mut sender_name_in_bytes = self.device_info.name.as_bytes();
+        if sender_name_in_bytes.len() > 50 {
+            sender_name_in_bytes = self.device_info.name[..50].as_bytes();
+        }
+
         encrypted_stream.write(&[sender_name_in_bytes.len() as u8])?;
         encrypted_stream.write(sender_name_in_bytes)?;
 

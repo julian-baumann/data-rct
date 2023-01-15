@@ -10,7 +10,6 @@ impl StreamReadExtension for MemoryStream {}
 
 impl Stream for MemoryStream {}
 
-
 impl MemoryStream {
     pub fn new() -> Self {
         return Self {
