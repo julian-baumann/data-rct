@@ -67,8 +67,8 @@ pub enum TransmissionMessageTunnel {
     ReceivedTransfer(Box<dyn Stream>)
 }
 
-pub struct Transmission<'a> {
-    device_info: &'a DeviceInfo,
+pub struct Transmission {
+    pub device_info: DeviceInfo,
     tcp_transmission: TcpTransmissionListener
 }
 
@@ -131,11 +131,15 @@ fn check_result(result: core::result::Result<usize, io::Error>, error: AcceptErr
     return None;
 }
 
-impl<'a> Transmission<'a> {
-    pub fn new(device_info: &'a DeviceInfo) -> Result<Self, Box<dyn Error>> {
+impl Transmission {
+    pub fn new(device_info: DeviceInfo) -> Result<Self, Box<dyn Error>> {
+        let tcp_transmission =  TcpTransmissionListener::new()?;
+        let mut modified_device = device_info.clone();
+        modified_device.port = tcp_transmission.port;
+
         return Ok(Transmission {
-            device_info,
-            tcp_transmission: TcpTransmissionListener::new()?
+            device_info: modified_device,
+            tcp_transmission
         })
     }
 
