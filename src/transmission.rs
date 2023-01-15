@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
 use crate::transmission::tcp::{TcpTransmissionClient, TcpTransmissionListener};
 use std::net::{ToSocketAddrs};
+use std::string::FromUtf8Error;
 use downcast_rs::{DowncastSync, impl_downcast};
 use crate::PROTOCOL_VERSION;
 use uuid::Uuid;
@@ -52,7 +53,7 @@ pub trait StreamReadExtension: Read {
 
         let value_as_string = match String::from_utf8(value) {
             Ok(value) => value,
-            Err(_) => return Err(AcceptErrors::StringConversionError)
+            Err(error) => return Err(AcceptErrors::StringConversionError(error))
         };
 
         return Ok(value_as_string);
@@ -74,11 +75,11 @@ pub struct Transmission {
 
 #[derive(Error, Debug)]
 pub enum AcceptErrors {
-    #[error("Unknown reading error")]
+    #[error("Unknown reading error: {0}")]
     UnknownReadingError(io::Error),
 
-    #[error("Error while trying to convert utf8-sequence to string")]
-    StringConversionError,
+    #[error("Error while trying to convert utf8-sequence to string: {0}")]
+    StringConversionError(FromUtf8Error),
 
     #[error("Missing protocol version")]
     MissingProtocolVersion,
@@ -255,8 +256,8 @@ impl Transmission {
             if bytes_read != PUBLIC_KEY_SIZE {
                 return Err("Wrong size for foreign public key!")?;
             }
-        } else {
-            return Err("Error while trying to read foreign public key")?;
+        } else if let Err(error) = bytes_read {
+            return Err(format!("Error while trying to read foreign public key {}", error))?;
         }
 
         // Generate random nonce for this session
