@@ -10,23 +10,3 @@ This protocol is designed to be used without the need to know which transport me
 ## Encryption
 
 The network stream is encrypted using the `XChaCha20` algorithm ([using this crate](https://crates.io/crates/chacha20)).
-
-
-## Progress
-
-✅ = Done and published <br />
-⏳ = Working on it  <br />
-🗓 = Planned <br />
-
-| Goal                    | State  |
-|-------------------------|--------|
-| UDP Discovery           | ✅     |
-| mDNS-SD Discovery       | ✅     |
-| BLE Discovery           | 🗓     |
-| TCP Transmission        | ⏳     |
-| BLE Transmission        | 🗓     |
-| Stream encryption       | ✅     |
-| Authorization           | 🗓     |
-| FFI Bindings for Swift  | 🗓     |
-| FFI Bindings for Kotlin | 🗓     |
-| FFI Bindings for C#     | 🗓     |
