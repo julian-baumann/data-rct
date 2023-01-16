@@ -26,14 +26,14 @@ trait DataTransmission {
     fn accept(&self) -> Option<Box<dyn Stream>>;
 }
 
-pub trait StreamReadExtension: Read {
+pub trait StreamRead: Read {
     fn read_u8(&mut self) -> std::result::Result<u8, io::Error> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
         Ok(buf[0])
     }
 
-    fn read_and_get_value<'a>(&mut self, length: usize, error: AcceptErrors) -> Result<Vec<u8>, AcceptErrors> {
+    fn read_and_get_value<'a>(&mut self, length: usize, error: TransmissionErrors) -> Result<Vec<u8>, TransmissionErrors> {
         let mut buffer = vec![0u8; length];
         let slice_buffer = buffer.as_mut_slice();
         let result = self.read(slice_buffer);
@@ -45,7 +45,7 @@ pub trait StreamReadExtension: Read {
         return Ok(slice_buffer.to_owned());
     }
 
-    fn read_string(&mut self, length: usize, error: AcceptErrors) -> Result<String, AcceptErrors> {
+    fn read_string(&mut self, length: usize, error: TransmissionErrors) -> Result<String, TransmissionErrors> {
         let value = match self.read_and_get_value(length, error) {
             Ok(value) => value,
             Err(error) => return Err(error)
@@ -53,14 +53,14 @@ pub trait StreamReadExtension: Read {
 
         let value_as_string = match String::from_utf8(value) {
             Ok(value) => value,
-            Err(error) => return Err(AcceptErrors::StringConversionError(error))
+            Err(error) => return Err(TransmissionErrors::StringConversionError(error))
         };
 
         return Ok(value_as_string);
     }
 }
 
-pub trait Stream: StreamReadExtension + Write + DowncastSync {
+pub trait Stream: StreamRead + Write + DowncastSync {
 }
 impl_downcast!(sync Stream);
 
@@ -74,7 +74,7 @@ pub struct Transmission {
 }
 
 #[derive(Error, Debug)]
-pub enum AcceptErrors {
+pub enum TransmissionErrors {
     #[error("Unknown reading error: {0}")]
     UnknownReadingError(io::Error),
 
@@ -116,9 +116,9 @@ pub struct TransmissionRequest {
     pub data_stream: EncryptedStream
 }
 
-fn check_result(result: core::result::Result<usize, io::Error>, error: AcceptErrors, expected_length: Option<usize>) -> Option<AcceptErrors> {
+fn check_result(result: core::result::Result<usize, io::Error>, error: TransmissionErrors, expected_length: Option<usize>) -> Option<TransmissionErrors> {
     if let Err(error) = result {
-        return Some(AcceptErrors::UnknownReadingError(error));
+        return Some(TransmissionErrors::UnknownReadingError(error));
     }
 
     if let Some(expected_length) = expected_length {
@@ -144,30 +144,30 @@ impl Transmission {
         })
     }
 
-    pub fn accept(&self) -> Option<Result<TransmissionRequest, AcceptErrors>> {
+    pub fn get_incoming(&self) -> Option<Result<TransmissionRequest, TransmissionErrors>> {
         if let Some(mut connection) = self.tcp_transmission.accept() {
             // == Version ==
             let protocol_version = connection.read_u8();
 
             if let Err(error) = protocol_version {
-                return Some(Err(AcceptErrors::UnknownReadingError(error)));
+                return Some(Err(TransmissionErrors::UnknownReadingError(error)));
             } else if let Ok(version) = protocol_version {
                 if version > PROTOCOL_VERSION {
-                    return Some(Err(AcceptErrors::InvalidVersion));
+                    return Some(Err(TransmissionErrors::InvalidVersion));
                 }
             }
 
-            let uuid = match connection.read_and_get_value(UUID_LENGTH, AcceptErrors::InvalidUUID) {
+            let uuid = match connection.read_and_get_value(UUID_LENGTH, TransmissionErrors::InvalidUUID) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
             };
 
             let uuid = match Uuid::from_slice(uuid.as_slice()) {
                 Ok(value) => value,
-                Err(_) => return Some(Err(AcceptErrors::InvalidUUID))
+                Err(_) => return Some(Err(TransmissionErrors::InvalidUUID))
             };
 
-            let foreign_public_key = match connection.read_and_get_value(PUBLIC_KEY_SIZE, AcceptErrors::InvalidForeignPublicKey) {
+            let foreign_public_key = match connection.read_and_get_value(PUBLIC_KEY_SIZE, TransmissionErrors::InvalidForeignPublicKey) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
             };
@@ -176,11 +176,11 @@ impl Transmission {
             let session_public_key = PublicKey::from(&session_secret_key);
             let result = connection.write(session_public_key.as_bytes());
 
-            if let Some(error) = check_result(result, AcceptErrors::ErrorSendingPublicKey, Some(PUBLIC_KEY_SIZE)) {
+            if let Some(error) = check_result(result, TransmissionErrors::ErrorSendingPublicKey, Some(PUBLIC_KEY_SIZE)) {
                 return Some(Err(error));
             }
 
-            let nonce = match connection.read_and_get_value(NONCE_LENGTH, AcceptErrors::InvalidNonce) {
+            let nonce = match connection.read_and_get_value(NONCE_LENGTH, TransmissionErrors::InvalidNonce) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
             };
@@ -191,27 +191,27 @@ impl Transmission {
                 <[u8; 24]>::try_from(nonce).unwrap(),
                 connection) {
                 Ok(value) => value,
-                Err(_) => return Some(Err(AcceptErrors::EncryptionError))
+                Err(_) => return Some(Err(TransmissionErrors::EncryptionError))
             };
 
             let sender_id_length = match encrypted_stream.read_u8() {
                 Ok(value) => value,
-                Err(error) => return Some(Err(AcceptErrors::UnknownReadingError(error)))
+                Err(error) => return Some(Err(TransmissionErrors::UnknownReadingError(error)))
             };
 
             // == Sender ID ==
-            let sender_id = match encrypted_stream.read_string(sender_id_length as usize, AcceptErrors::InvalidSenderId) {
+            let sender_id = match encrypted_stream.read_string(sender_id_length as usize, TransmissionErrors::InvalidSenderId) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
             };
 
             let sender_name_length = match encrypted_stream.read_u8() {
                 Ok(value) => value,
-                Err(error) => return Some(Err(AcceptErrors::UnknownReadingError(error)))
+                Err(error) => return Some(Err(TransmissionErrors::UnknownReadingError(error)))
             };
 
             // == Sender Name ==
-            let sender_name = match encrypted_stream.read_string(sender_name_length as usize, AcceptErrors::InvalidSenderName) {
+            let sender_name = match encrypted_stream.read_string(sender_name_length as usize, TransmissionErrors::InvalidSenderName) {
                 Ok(value) => value,
                 Err(error) => return Some(Err(error))
             };

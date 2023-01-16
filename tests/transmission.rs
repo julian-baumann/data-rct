@@ -25,7 +25,7 @@ pub fn transmission_send() {
 
     thread::spawn(move || {
         loop {
-            receive_transmission.accept().unwrap().unwrap();
+            receive_transmission.get_incoming().unwrap().unwrap();
         }
     });
 
@@ -62,7 +62,7 @@ pub fn transmission_receive() {
         let _encrypted_stream = transmission.open(&my_device_clone).unwrap();
     });
 
-    let transmission_request = receive_transmission.accept().unwrap().unwrap();
+    let transmission_request = receive_transmission.get_incoming().unwrap().unwrap();
     assert_eq!(transmission_request.sender_id, foreign_device.id);
     assert_eq!(transmission_request.sender_name, foreign_device.name);
     assert!(transmission_request.uuid.len() > 0);

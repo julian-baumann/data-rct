@@ -15,7 +15,15 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="" />
+    <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/encryption.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/encryption.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/transmission/tcp.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission/tcp.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/helper.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/transmission.rs" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -76,7 +84,24 @@
       <recent name="$PROJECT_DIR$/src/discovery" />
     </key>
   </component>
-  <component name="RunManager">
+  <component name="RunManager" selected="Cargo.Test">
+    <configuration name="Test discovery" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test discovery discovery -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="command" value="test" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -94,6 +119,11 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Cargo.Test discovery" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="RustProjectSettings">
     <option name="runExternalLinterOnTheFly" value="true" />
@@ -194,6 +224,8 @@
       <workItem from="1673463723530" duration="6110000" />
       <workItem from="1673799917419" duration="1371000" />
       <workItem from="1673801306291" duration="7231000" />
+      <workItem from="1673812061463" duration="608000" />
+      <workItem from="1673812777823" duration="2100000" />
     </task>
     <servers />
   </component>

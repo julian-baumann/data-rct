@@ -1,12 +1,12 @@
 use std::io::{Cursor, Read, Write};
-use data_rct::transmission::{Stream, StreamReadExtension};
+use data_rct::transmission::{Stream, StreamRead};
 
 pub struct MemoryStream {
     last_written_byte_length: usize,
     cursor: Cursor<Vec<u8>>
 }
 
-impl StreamReadExtension for MemoryStream {}
+impl StreamRead for MemoryStream {}
 
 impl Stream for MemoryStream {}
 

@@ -49,10 +49,10 @@ fn discovery() {
                 assert!(true);
                 return;
             }
+        }
 
-            if start.elapsed() >= Duration::from_secs(20) {
-                assert!(false, "No devices were found in 20s");
-            }
+        if start.elapsed() >= Duration::from_secs(20) {
+            assert!(false, "No devices were found in 20s");
         }
     }
 }
