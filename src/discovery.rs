@@ -1,10 +1,8 @@
 mod udp;
 mod mdns_sd;
-
 use std::collections::HashMap;
 use std::error::Error;
-use std::thread;
-use std::thread::JoinHandle;
+use std::{fmt, thread};
 use crossbeam_channel::{Receiver, Sender};
 use crate::discovery::mdns_sd::MdnsSdDiscovery;
 use crate::discovery::udp::UdpDiscovery;
@@ -20,7 +18,6 @@ pub struct DeviceInfo {
 
 pub struct Discovery {
     pub my_device: DeviceInfo,
-    discovery_thread: JoinHandle<()>,
     discovered_devices: HashMap<String, DeviceInfo>,
     sender: Sender<ThreadCommunication>,
     discovery_receiver: Receiver<DiscoveryCommunication>,
@@ -40,6 +37,23 @@ pub enum DiscoveryCommunication {
     RemoveDevice(String)
 }
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum DiscoveryMethod {
+    Both,
+    MDNS,
+    UDP
+}
+
+impl fmt::Display for DiscoveryMethod {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DiscoveryMethod::Both => write!(f, "Both"),
+            DiscoveryMethod::MDNS => write!(f, "MDNS"),
+            DiscoveryMethod::UDP => write!(f, "UDP"),
+        }
+    }
+}
+
 trait PeripheralDiscovery {
     fn new(my_device: DeviceInfo,
            discovery_sender: Sender<DiscoveryCommunication>,
@@ -48,7 +62,7 @@ trait PeripheralDiscovery {
 }
 
 impl Discovery {
-    pub fn new(my_device: DeviceInfo) -> Result<Discovery, Box<dyn Error>> {
+    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod) -> Result<Discovery, Box<dyn Error>> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let (discovery_sender, discovery_receiver) = crossbeam_channel::unbounded();
 
@@ -64,16 +78,19 @@ impl Discovery {
             receiver.clone()
         )?;
 
-        let discovery_thread = thread::spawn(move || {
-            udp_discovery.start_loop().ok();
-        });
+        if method == DiscoveryMethod::UDP || method == DiscoveryMethod::Both {
+            thread::spawn(move || {
+                udp_discovery.start_loop().ok();
+            });
+        }
 
-        thread::spawn(move || {
-            mdns_discovery.start_loop().ok();
-        });
+        if method == DiscoveryMethod::MDNS || method == DiscoveryMethod::Both {
+            thread::spawn(move || {
+                mdns_discovery.start_loop().ok();
+            });
+        }
 
         return Ok(Self {
-            discovery_thread,
             my_device,
             discovered_devices: HashMap::new(),
             sender,
@@ -119,8 +136,8 @@ impl Discovery {
     }
 
     pub fn stop(self) -> Result<(), Box<dyn Error>> {
+        self.stop_advertising();
         self.sender.send(ThreadCommunication::Shutdown)?;
-        self.discovery_thread.join().ok();
 
         return Ok(());
     }

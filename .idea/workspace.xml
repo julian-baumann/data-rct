@@ -17,7 +17,9 @@
   <component name="ChangeListManager">
     <list default="true" id="69bd79af-1f99-486b-9f94-c166d5b026dd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/discovery.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/encryption.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/encryption.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/transmission.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/transmission/tcp.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/transmission/tcp.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/discovery.rs" afterDir="false" />
@@ -102,6 +104,23 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <configuration name="Test transmission_send" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package data_rct --test transmission transmission_send -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="command" value="test" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -122,6 +141,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Test discovery" />
+        <item itemvalue="Cargo.Test transmission_send" />
       </list>
     </recent_temporary>
   </component>
@@ -225,7 +245,10 @@
       <workItem from="1673799917419" duration="1371000" />
       <workItem from="1673801306291" duration="7231000" />
       <workItem from="1673812061463" duration="608000" />
-      <workItem from="1673812777823" duration="2100000" />
+      <workItem from="1673812777823" duration="5523000" />
+      <workItem from="1674040474095" duration="67000" />
+      <workItem from="1674043873859" duration="6282000" />
+      <workItem from="1674052655293" duration="2847000" />
     </task>
     <servers />
   </component>

@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use data_rct::discovery::{DeviceInfo, Discovery};
+use data_rct::discovery::{DeviceInfo, Discovery, DiscoveryMethod};
 
 const FOREIGN_DEVICE_ID: &str = "39FAC7A0-E581-4676-A9C5-0F6DC667567F";
 
@@ -13,25 +13,22 @@ fn get_my_device() -> DeviceInfo {
     };
 }
 
-fn setup_foreign_discovery() -> Discovery {
+fn setup_foreign_discovery(method: DiscoveryMethod) -> Discovery {
     let discovery = Discovery::new(DeviceInfo {
         id: FOREIGN_DEVICE_ID.to_string(),
         name: "Discovery-Test Advertiser".to_string(),
         port: 52,
         device_type: "computer".to_string(),
         ip_address: "2.3.4.5".to_string()
-    }).unwrap();
+    }, method).unwrap();
 
     discovery.advertise();
 
     return discovery;
 }
 
-#[test]
-fn discovery() {
-    let foreign_discovery = setup_foreign_discovery();
-
-    let mut discovery = Discovery::new(get_my_device()).unwrap();
+fn discover_device(method: DiscoveryMethod) {
+    let mut discovery = Discovery::new(get_my_device(), method.clone()).unwrap();
     discovery.start_search();
 
     let start = Instant::now();
@@ -44,15 +41,28 @@ fn discovery() {
                 discovery.stop_search();
                 discovery.stop_advertising();
                 discovery.stop().expect("Failed to stop discovery");
-                foreign_discovery.stop().expect("Failed to stop foreign discovery");
 
-                assert!(true);
                 return;
             }
         }
 
         if start.elapsed() >= Duration::from_secs(20) {
-            assert!(false, "No devices were found in 20s");
+            assert!(false, "No devices were found in 20s, mode: {}", method.to_string());
         }
     }
+}
+
+#[test]
+fn discovery() {
+    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::UDP);
+    discover_device(DiscoveryMethod::UDP);
+    foreign_discovery.stop().expect("Failed to stop foreign discovery");
+
+    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::MDNS);
+    discover_device(DiscoveryMethod::MDNS);
+    foreign_discovery.stop().expect("Failed to stop foreign discovery");
+
+    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::Both);
+    discover_device(DiscoveryMethod::Both);
+    foreign_discovery.stop().expect("Failed to stop foreign discovery");
 }

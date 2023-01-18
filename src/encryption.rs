@@ -8,8 +8,7 @@ use chacha20poly1305::XChaCha20Poly1305;
 use rand_core::{OsRng};
 use chacha20::{XChaCha20};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
-
-use crate::transmission::{Stream, StreamRead};
+use crate::stream::{Stream, StreamRead, StreamWrite};
 
 
 pub fn generate_key() -> [u8; 32] {
@@ -30,6 +29,7 @@ pub struct EncryptedStream {
 }
 
 impl StreamRead for EncryptedStream {}
+impl StreamWrite for EncryptedStream {}
 
 impl<'a> EncryptedStream {
     pub fn new(key: [u8; 32], nonce: [u8; 24], stream: Box<dyn Stream>) -> Self {

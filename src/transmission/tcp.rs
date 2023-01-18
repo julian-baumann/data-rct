@@ -2,7 +2,8 @@ use std::error::Error;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use crate::transmission::{DataTransmission, Stream, StreamRead};
+use crate::stream::{Stream, StreamRead, StreamWrite};
+use crate::transmission::{DataTransmission};
 
 pub struct TcpTransmissionListener {
     pub port: u16,
@@ -10,6 +11,7 @@ pub struct TcpTransmissionListener {
 }
 
 impl StreamRead for TcpStream {}
+impl StreamWrite for TcpStream {}
 impl Stream for TcpStream {}
 
 impl DataTransmission for TcpTransmissionListener {
@@ -41,6 +43,7 @@ impl DataTransmission for TcpTransmissionListener {
 // ==== listener ====
 
 impl StreamRead for TcpTransmissionClient {}
+impl StreamWrite for TcpTransmissionClient {}
 impl Stream for TcpTransmissionClient {}
 
 pub struct TcpTransmissionClient {

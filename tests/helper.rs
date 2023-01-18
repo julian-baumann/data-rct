@@ -1,5 +1,5 @@
 use std::io::{Cursor, Read, Write};
-use data_rct::transmission::{Stream, StreamRead};
+use data_rct::stream::{Stream, StreamRead, StreamWrite};
 
 pub struct MemoryStream {
     last_written_byte_length: usize,
@@ -7,7 +7,7 @@ pub struct MemoryStream {
 }
 
 impl StreamRead for MemoryStream {}
-
+impl StreamWrite for MemoryStream {}
 impl Stream for MemoryStream {}
 
 impl MemoryStream {
