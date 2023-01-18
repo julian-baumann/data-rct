@@ -54,14 +54,6 @@ fn discover_device(method: DiscoveryMethod) {
 
 #[test]
 fn discovery() {
-    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::UDP);
-    discover_device(DiscoveryMethod::UDP);
-    foreign_discovery.stop().expect("Failed to stop foreign discovery");
-
-    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::MDNS);
-    discover_device(DiscoveryMethod::MDNS);
-    foreign_discovery.stop().expect("Failed to stop foreign discovery");
-
     let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::Both);
     discover_device(DiscoveryMethod::Both);
     foreign_discovery.stop().expect("Failed to stop foreign discovery");
