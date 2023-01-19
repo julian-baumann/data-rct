@@ -11,14 +11,8 @@ mdns-sd = "0.5.4"
 x25519-dalek = { path = "deps/x25519-dalek" }
 chacha20 = "0.9.0"
 chacha20poly1305 = { version = "^0.10", features = ["stream"] }
+uuid = { version = "1.2.0", features = ["v4", "fast-rng"]}
 rand_core = "0.6"
 downcast-rs = "1.2.0"
 anyhow = "1.0"
 thiserror = "1.0"
-
-[dependencies.uuid]
-version = "1.2.0"
-features = [
-    "v4",                # Lets you generate random UUIDs
-    "fast-rng",          # Use a faster (but still sufficiently random) RNG
-]

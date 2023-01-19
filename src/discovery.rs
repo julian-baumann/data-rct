@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::{fmt, thread};
 use crossbeam_channel::{Receiver, Sender};
+use thiserror::Error;
 use crate::discovery::mdns_sd::MdnsSdDiscovery;
 use crate::discovery::udp::UdpDiscovery;
 
@@ -44,6 +45,15 @@ pub enum DiscoveryMethod {
     UDP
 }
 
+#[derive(Error, Debug)]
+pub enum DiscoverySetupError {
+    #[error("Unable to setup UDP Discovery")]
+    UnableToSetupUdp,
+
+    #[error("Unable to setup MDNS-SD Discovery")]
+    UnableToSetupMdns
+}
+
 impl fmt::Display for DiscoveryMethod {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -62,21 +72,27 @@ trait PeripheralDiscovery {
 }
 
 impl Discovery {
-    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod) -> Result<Discovery, Box<dyn Error>> {
+    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod) -> Result<Discovery, DiscoverySetupError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let (discovery_sender, discovery_receiver) = crossbeam_channel::unbounded();
 
-        let mut udp_discovery = UdpDiscovery::new(
+        let mut udp_discovery = match UdpDiscovery::new(
             my_device.clone(),
             discovery_sender.clone(),
             receiver.clone()
-        )?;
+        ) {
+            Ok(value) => value,
+            Err(_) => return Err(DiscoverySetupError::UnableToSetupUdp)
+        };
 
-        let mut mdns_discovery = MdnsSdDiscovery::new(
+        let mut mdns_discovery = match MdnsSdDiscovery::new(
             my_device.clone(),
             discovery_sender.clone(),
             receiver.clone()
-        )?;
+        ) {
+            Ok(value) => value,
+            Err(_) => return Err(DiscoverySetupError::UnableToSetupUdp)
+        };
 
         if method == DiscoveryMethod::UDP || method == DiscoveryMethod::Both {
             thread::spawn(move || {
