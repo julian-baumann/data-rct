@@ -1,0 +1,26 @@
+namespace DataRCT {};
+
+dictionary DeviceInfo {
+    string id;
+    string name;
+    u16 port;
+    string device_type;
+    string ip_address;
+};
+
+enum DiscoveryMethod {
+    "Both",
+    "MDNS",
+    "UDP"
+};
+
+[Error]
+enum DiscoverySetupError {
+    "UnableToSetupUdp",
+    "UnableToSetupMdns"
+};
+
+interface Discovery {
+    [Throws=DiscoverySetupError]
+    constructor(DeviceInfo my_device, DiscoveryMethod method);
+};
