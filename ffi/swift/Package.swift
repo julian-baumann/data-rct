@@ -23,6 +23,12 @@ let package = Package(
         .target(
             name: "DataRCT",
             dependencies: []),
+        
+        .binaryTarget(
+            name: "DataRCT_FFI",
+            url: "https://github.com/julian-baumann/data-rct/blob/feature/swift-ffi/ffi/swift/DataRCT.xcframework.zip?raw=true",
+            checksum: "6258a6c8edefec07f56e4c3399799f0bb5fd7714b25e6044d6d80cca0605252a"),
+        
         .testTarget(
             name: "DataRCTTests",
             dependencies: ["DataRCT"]),

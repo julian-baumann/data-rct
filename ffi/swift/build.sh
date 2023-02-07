@@ -4,6 +4,12 @@ pushd ../data_rct_ffi
     cargo run --bin uniffi-bindgen generate "src/data_rct.udl" --language swift --out-dir "../swift/Sources/DataRCT"
 popd
 
+rm -rf Include
+mkdir Include
+
+mv Sources/DataRCT/*.h Include/
+mv Sources/DataRCT/*.modulemap Include/
+
 Configuration="Release"
 
 # iOS
@@ -57,14 +63,14 @@ echo "Generating xcframework"
 
 xcodebuild -create-xcframework \
   -library ./.out/libdatarct_macos.a \
-  -headers ./Sources/ \
+  -headers ./Include/ \
   -library ./.out/libdatarct_ios.a \
-  -headers ./Sources/ \
+  -headers ./Include/ \
   -library ./.out/libdatarct_ios_simulator.a \
-  -headers ./Sources/ \
-  -output .out/DataRCT.xcframework
+  -headers ./Include/ \
+  -output .out/DataRCT_FFI.xcframework
 
-zip -r DataRCT.xcframework.zip .out/DataRCT.xcframework
+zip -r DataRCT_FFI.xcframework.zip .out/DataRCT_FFI.xcframework
 
 rm -rf .out
 
