@@ -67,7 +67,7 @@ impl<'a> Read for EncryptedStream {
     }
 }
 
-impl<'a> Write for EncryptedStream {
+impl Write for EncryptedStream {
     fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
         let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);

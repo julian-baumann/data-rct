@@ -21,7 +21,7 @@ pub struct Discovery {
     pub my_device: DeviceInfo,
     discovered_devices: HashMap<String, DeviceInfo>,
     sender: Sender<ThreadCommunication>,
-    discovery_receiver: Receiver<DiscoveryCommunication>,
+    discovery_receiver: Receiver<DiscoveryCommunication>
 }
 
 #[derive(PartialEq)]
