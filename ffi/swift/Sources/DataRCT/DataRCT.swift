@@ -5,8 +5,8 @@ import Foundation
 // Depending on the consumer's build setup, the low-level FFI code
 // might be in a separate module, or it might be compiled inline into
 // this module. This is a bit of light hackery to work with both.
-#if canImport(DataRCT)
-    import DataRCT
+#if canImport(DataRCTFFI)
+    import DataRCTFFI
 #endif
 
 private extension RustBuffer {
@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_DataRCT_bab6_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_DataRCT_2633_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_DataRCT_bab6_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_DataRCT_2633_rustbuffer_free(self, $0) }
     }
 }
 
@@ -331,7 +331,12 @@ private struct FfiConverterString: FfiConverter {
     }
 }
 
-public protocol DiscoveryProtocol {}
+public protocol DiscoveryProtocol {
+    func advertise()
+    func stopAdvertising()
+    func startSearch()
+    func stopSearch()
+}
 
 public class Discovery: DiscoveryProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -347,7 +352,7 @@ public class Discovery: DiscoveryProtocol {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeDiscoverySetupError.self) {
-                DataRCT_bab6_Discovery_new(
+                DataRCT_2633_Discovery_new(
                     FfiConverterTypeDeviceInfo.lower(myDevice),
                     FfiConverterTypeDiscoveryMethod.lower(method), $0
                 )
@@ -355,7 +360,35 @@ public class Discovery: DiscoveryProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_bab6_Discovery_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_2633_Discovery_object_free(pointer, $0) }
+    }
+
+    public func advertise() {
+        try!
+            rustCall {
+                DataRCT_2633_Discovery_advertise(self.pointer, $0)
+            }
+    }
+
+    public func stopAdvertising() {
+        try!
+            rustCall {
+                DataRCT_2633_Discovery_stop_advertising(self.pointer, $0)
+            }
+    }
+
+    public func startSearch() {
+        try!
+            rustCall {
+                DataRCT_2633_Discovery_start_search(self.pointer, $0)
+            }
+    }
+
+    public func stopSearch() {
+        try!
+            rustCall {
+                DataRCT_2633_Discovery_stop_search(self.pointer, $0)
+            }
     }
 }
 

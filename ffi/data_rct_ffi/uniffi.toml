@@ -3,5 +3,5 @@ package_name = "com.julian_baumann.data_rct"
 cdylib_name = "datarct"
 
 [bindings.swift]
-ffi_module_name = "DataRCT"
-ffi_module_filename = "dataRctFFI"
+#ffi_module_name = "DataRCT"
+#module_filename = "module"

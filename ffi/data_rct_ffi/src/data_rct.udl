@@ -23,4 +23,8 @@ enum DiscoverySetupError {
 interface Discovery {
     [Throws=DiscoverySetupError]
     constructor(DeviceInfo my_device, DiscoveryMethod method);
+    void advertise();
+    void stop_advertising();
+    void start_search();
+    void stop_search();
 };

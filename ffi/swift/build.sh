@@ -8,7 +8,7 @@ rm -rf Include
 mkdir Include
 
 mv Sources/DataRCT/*.h Include/
-mv Sources/DataRCT/*.modulemap Include/
+mv Sources/DataRCT/*.modulemap Include/module.modulemap
 
 Configuration="Release"
 
@@ -25,6 +25,10 @@ LLVM_TARGET_TRIPLE_SUFFIX="-simulator" ARCHS="x86_64" ./xc-universal-binary.sh d
 
 rm -rf .out
 mkdir .out
+mkdir .out/macos
+mkdir .out/ios
+mkdir .out/ios-simulator
+
 
 echo ""
 echo "Generating dynamic macOS library"
@@ -33,7 +37,7 @@ echo "Generating dynamic macOS library"
 lipo -create \
   ../../target/x86_64-apple-darwin/release/libdata_rct.a \
   ../../target/aarch64-apple-darwin/release/libdata_rct.a \
-  -output .out/libdatarct_macos.a
+  -output .out/macos/libdatarct.a
 
 echo "Done."
 
@@ -43,7 +47,7 @@ echo "Generating dynamic iOS library"
 # Generate dynamic iOS library
 lipo -create \
   ../../target/aarch64-apple-ios/release/libdata_rct.a \
-  -output .out/libdatarct_ios.a
+  -output .out/ios/libdatarct.a
 
 echo "Done."
 
@@ -54,24 +58,26 @@ echo "Generating dynamic iOS simulator library"
 lipo -create \
   ../../target/x86_64-apple-ios/release/libdata_rct.a \
   ../../target/aarch64-apple-ios-sim/release/libdata_rct.a \
-  -output .out/libdatarct_ios_simulator.a
+  -output .out/ios-simulator/libdatarct.a
 
 echo "Done."
 
 echo ""
 echo "Generating xcframework"
 
+rm -rf DataRCTFFI.xcframework
+
 xcodebuild -create-xcframework \
-  -library ./.out/libdatarct_macos.a \
+  -library ./.out/macos/libdatarct.a \
   -headers ./Include/ \
-  -library ./.out/libdatarct_ios.a \
+  -library ./.out/ios/libdatarct.a \
   -headers ./Include/ \
-  -library ./.out/libdatarct_ios_simulator.a \
+  -library ./.out/ios-simulator/libdatarct.a \
   -headers ./Include/ \
-  -output .out/DataRCT_FFI.xcframework
+  -output DataRCTFFI.xcframework
 
-zip -r DataRCT_FFI.xcframework.zip .out/DataRCT_FFI.xcframework
+#zip -r DataRCTFFI.xcframework.zip DataRCTFFI.xcframework
 
-rm -rf .out
+#rm -rf .out
 
 echo "Done."

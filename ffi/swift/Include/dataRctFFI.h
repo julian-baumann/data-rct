@@ -46,27 +46,43 @@ typedef struct RustCallStatus {
 // ⚠️ increment the version suffix in all instances of UNIFFI_SHARED_HEADER_V4 in this file.           ⚠️
 #endif // def UNIFFI_SHARED_H
 
-void ffi_DataRCT_bab6_Discovery_object_free(
+void ffi_DataRCT_2633_Discovery_object_free(
       void*_Nonnull ptr,
     RustCallStatus *_Nonnull out_status
     );
-void*_Nonnull DataRCT_bab6_Discovery_new(
+void*_Nonnull DataRCT_2633_Discovery_new(
       RustBuffer my_device,RustBuffer method,
     RustCallStatus *_Nonnull out_status
     );
-RustBuffer ffi_DataRCT_bab6_rustbuffer_alloc(
+void DataRCT_2633_Discovery_advertise(
+      void*_Nonnull ptr,
+    RustCallStatus *_Nonnull out_status
+    );
+void DataRCT_2633_Discovery_stop_advertising(
+      void*_Nonnull ptr,
+    RustCallStatus *_Nonnull out_status
+    );
+void DataRCT_2633_Discovery_start_search(
+      void*_Nonnull ptr,
+    RustCallStatus *_Nonnull out_status
+    );
+void DataRCT_2633_Discovery_stop_search(
+      void*_Nonnull ptr,
+    RustCallStatus *_Nonnull out_status
+    );
+RustBuffer ffi_DataRCT_2633_rustbuffer_alloc(
       int32_t size,
     RustCallStatus *_Nonnull out_status
     );
-RustBuffer ffi_DataRCT_bab6_rustbuffer_from_bytes(
+RustBuffer ffi_DataRCT_2633_rustbuffer_from_bytes(
       ForeignBytes bytes,
     RustCallStatus *_Nonnull out_status
     );
-void ffi_DataRCT_bab6_rustbuffer_free(
+void ffi_DataRCT_2633_rustbuffer_free(
       RustBuffer buf,
     RustCallStatus *_Nonnull out_status
     );
-RustBuffer ffi_DataRCT_bab6_rustbuffer_reserve(
+RustBuffer ffi_DataRCT_2633_rustbuffer_reserve(
       RustBuffer buf,int32_t additional,
     RustCallStatus *_Nonnull out_status
     );
