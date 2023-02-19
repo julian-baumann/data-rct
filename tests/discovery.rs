@@ -1,3 +1,4 @@
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 use data_rct::discovery::{DeviceInfo, Discovery, DiscoveryMethod};
 
@@ -20,7 +21,7 @@ fn setup_foreign_discovery(method: DiscoveryMethod) -> Discovery {
         port: 52,
         device_type: "computer".to_string(),
         ip_address: "2.3.4.5".to_string()
-    }, method).unwrap();
+    }, method, None).unwrap();
 
     discovery.advertise();
 
@@ -28,7 +29,7 @@ fn setup_foreign_discovery(method: DiscoveryMethod) -> Discovery {
 }
 
 fn discover_device(method: DiscoveryMethod) {
-    let mut discovery = Discovery::new(get_my_device(), method.clone()).unwrap();
+    let discovery = Discovery::new(get_my_device(), method.clone(), None).unwrap();
     discovery.start_search();
 
     let start = Instant::now();
@@ -54,7 +55,9 @@ fn discover_device(method: DiscoveryMethod) {
 
 #[test]
 fn discovery() {
-    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::Both);
-    discover_device(DiscoveryMethod::Both);
+    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::MDNS);
+    // discover_device(DiscoveryMethod::Both);
+    // sleep(Duration::from_secs(20));
+    loop {}
     foreign_discovery.stop().expect("Failed to stop foreign discovery");
 }

@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 use std::error::Error;
-use crossbeam_channel::{Receiver, Sender};
+use std::sync::{Arc, Mutex, RwLock};
+use crossbeam_channel::{Receiver};
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-use crate::discovery::{DeviceInfo, DiscoveryCommunication, PeripheralDiscovery, ThreadCommunication};
+use crate::discovery::{DeviceInfo, DiscoveryDelegate, PeripheralDiscovery, ThreadCommunication};
 use crate::PROTOCOL_VERSION;
 
 pub struct MdnsSdDiscovery {
     mdns_daemon: ServiceDaemon,
     my_device: DeviceInfo,
-    discovery_sender: Sender<DiscoveryCommunication>,
-    communication_receiver: Receiver<ThreadCommunication>
+    communication_receiver: Receiver<ThreadCommunication>,
+    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>
 }
 
 const SERVICE_NAME: &str = "_data-rct._tcp.local.";
@@ -44,13 +46,15 @@ impl MdnsSdDiscovery {
 
 impl PeripheralDiscovery for MdnsSdDiscovery {
     fn new(my_device: DeviceInfo,
-               discovery_sender: Sender<DiscoveryCommunication>,
-               communication_receiver: Receiver<ThreadCommunication>) -> Result<MdnsSdDiscovery, Box<dyn Error>> {
+           communication_receiver: Receiver<ThreadCommunication>,
+           discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+           delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<MdnsSdDiscovery, Box<dyn Error>> {
         return Ok(MdnsSdDiscovery {
             mdns_daemon: ServiceDaemon::new()?,
             my_device,
-            discovery_sender,
-            communication_receiver
+            communication_receiver,
+            discovered_devices,
+            delegate
         });
     }
 
@@ -66,6 +70,7 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                     ThreadCommunication::StopAnsweringToLookupRequest => { self.stop_advertising() },
                     ThreadCommunication::Shutdown => {
                         self.stop_advertising();
+                        self.mdns_daemon.shutdown().ok();
 
                         return Ok(())
                     },
@@ -103,7 +108,22 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                                             ip_address: "".to_string()
                                         };
 
-                                        self.discovery_sender.try_send(DiscoveryCommunication::DeviceDiscovered(device)).ok();
+                                        let mut is_new_device = false;
+
+                                        if let Ok(mut discovered_devices) = self.discovered_devices.write() {
+                                            match discovered_devices.insert(device.id.clone(), device.clone()) {
+                                                Some(_) => is_new_device = false,
+                                                None => is_new_device = true
+                                            };
+                                        }
+
+                                        if is_new_device {
+                                            if let Some(delegate) = &self.delegate {
+                                                if let Ok(delegate) = delegate.lock() {
+                                                    delegate.device_added(device);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -114,8 +134,23 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                         if service_type == SERVICE_NAME {
                             let device_id = fullname.split(".").next();
 
+                            let mut was_already_deleted = false;
+
                             if let Some(device_id) = device_id {
-                                self.discovery_sender.try_send(DiscoveryCommunication::RemoveDevice(device_id.to_string())).ok();
+                                if let Ok(mut discovered_devices) = self.discovered_devices.write() {
+                                    match discovered_devices.remove(device_id) {
+                                        Some(_) => was_already_deleted = false,
+                                        None => was_already_deleted = true
+                                    }
+                                }
+
+                                if !was_already_deleted {
+                                    if let Some(delegate) = &self.delegate {
+                                        if let Ok(delegate) = delegate.lock() {
+                                            delegate.device_removed(device_id.to_string());
+                                        }
+                                    }
+                                }
                             }
                         }
                     },

@@ -3,6 +3,8 @@ mod mdns_sd;
 use std::collections::HashMap;
 use std::error::Error;
 use std::{fmt, thread};
+use std::fmt::Debug;
+use std::sync::{Arc, Mutex, RwLock};
 use crossbeam_channel::{Receiver, Sender};
 use thiserror::Error;
 use crate::discovery::mdns_sd::MdnsSdDiscovery;
@@ -15,13 +17,6 @@ pub struct DeviceInfo {
     pub port: u16,
     pub device_type: String,
     pub ip_address: String
-}
-
-pub struct Discovery {
-    pub my_device: DeviceInfo,
-    discovered_devices: HashMap<String, DeviceInfo>,
-    sender: Sender<ThreadCommunication>,
-    discovery_receiver: Receiver<DiscoveryCommunication>
 }
 
 #[derive(PartialEq)]
@@ -66,60 +61,88 @@ impl fmt::Display for DiscoveryMethod {
 
 trait PeripheralDiscovery {
     fn new(my_device: DeviceInfo,
-           discovery_sender: Sender<DiscoveryCommunication>,
-           communication_receiver: Receiver<ThreadCommunication>) -> Result<Self, Box<dyn Error>> where Self : Sized;
+           communication_receiver: Receiver<ThreadCommunication>,
+           device_list: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+           callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<Self, Box<dyn Error>> where Self : Sized;
     fn start_loop(&mut self) -> Result<(), Box<dyn Error>>;
 }
 
+pub struct Discovery {
+    pub my_device: DeviceInfo,
+    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    sender: Sender<ThreadCommunication>
+}
+
+pub trait DiscoveryDelegate: Send + Sync + Debug {
+    fn device_added(&self, value: DeviceInfo);
+    fn device_removed(&self, device_id: String);
+}
+
 impl Discovery {
-    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod) -> Result<Discovery, DiscoverySetupError> {
+    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod, delegate: Option<Box<dyn DiscoveryDelegate>>) -> Result<Discovery, DiscoverySetupError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let (discovery_sender, discovery_receiver) = crossbeam_channel::unbounded();
 
-        let mut udp_discovery = match UdpDiscovery::new(
-            my_device.clone(),
-            discovery_sender.clone(),
-            receiver.clone()
-        ) {
-            Ok(value) => value,
-            Err(_) => return Err(DiscoverySetupError::UnableToSetupUdp)
-        };
-
-        let mut mdns_discovery = match MdnsSdDiscovery::new(
-            my_device.clone(),
-            discovery_sender.clone(),
-            receiver.clone()
-        ) {
-            Ok(value) => value,
-            Err(_) => return Err(DiscoverySetupError::UnableToSetupUdp)
+        let discovered_devices = Arc::new(RwLock::new(HashMap::new()));
+        let callback_arc = match delegate {
+            Some(callback) => Some(Arc::new(Mutex::new(callback))),
+            None => None
         };
 
         if method == DiscoveryMethod::UDP || method == DiscoveryMethod::Both {
-            thread::spawn(move || {
-                udp_discovery.start_loop().ok();
-            });
+            let udp_discovery = UdpDiscovery::new(
+                my_device.clone(),
+                receiver.clone(),
+                Arc::clone(&discovered_devices),
+                match &callback_arc {
+                    Some(callback) => Some(Arc::clone(&callback)),
+                    None => None
+                }
+            );
+
+            if let Ok(mut udp_discovery) = udp_discovery {
+                let builder = thread::Builder::new();
+                let builder = builder.name("UDP Discovery".into());
+
+                builder.spawn(move || {
+                    if let Err(error) = udp_discovery.start_loop() {
+                        println!("{}", error);
+                    }
+                }).ok();
+            } else if let Err(error) = udp_discovery {
+                println!("Error setting up UDP discovery \"{error}\"");
+            }
         }
 
         if method == DiscoveryMethod::MDNS || method == DiscoveryMethod::Both {
-            thread::spawn(move || {
-                mdns_discovery.start_loop().ok();
-            });
+            let mdns_discovery = MdnsSdDiscovery::new(
+                my_device.clone(),
+                receiver.clone(),
+                Arc::clone(&discovered_devices),
+                match &callback_arc {
+                    Some(callback) => Some(Arc::clone(&callback)),
+                    None => None
+                }
+            );
+
+            if let Ok(mut mdns_discovery) = mdns_discovery {
+                let builder = thread::Builder::new();
+                let builder = builder.name("mDNS-SD Discovery".into());
+
+                builder.spawn(move || {
+                    if let Err(error) = mdns_discovery.start_loop() {
+                        println!("{}", error);
+                    }
+                }).ok();
+            } else if let Err(error) = mdns_discovery {
+                println!("Error setting up MDNS-SD discovery \"{error}\"");
+            }
         }
 
         return Ok(Self {
             my_device,
-            discovered_devices: HashMap::new(),
-            sender,
-            discovery_receiver
+            discovered_devices,
+            sender
         });
-    }
-
-    fn add_device(&mut self, device: DeviceInfo) {
-        self.discovered_devices.insert(device.id.clone(), device);
-    }
-
-    fn remove_device(&mut self, device_id: &str) {
-        self.discovered_devices.remove(device_id);
     }
 
     pub fn advertise(&self) {
@@ -138,17 +161,12 @@ impl Discovery {
         self.sender.send(ThreadCommunication::StopLookingForDevices).ok();
     }
 
-    pub fn get_devices(&mut self) -> Vec<DeviceInfo> {
-        let new_devices = self.discovery_receiver.try_recv();
-
-        if let Ok(new_devices) = new_devices {
-            match new_devices {
-                DiscoveryCommunication::DeviceDiscovered(device) => { self.add_device(device) }
-                DiscoveryCommunication::RemoveDevice(device_id) => { self.remove_device(&device_id) }
-            }
+    pub fn get_devices(&self) -> Vec<DeviceInfo> {
+        if let Ok(discovered_devices) = self.discovered_devices.read() {
+            return discovered_devices.values().cloned().collect();
         }
 
-        return self.discovered_devices.values().cloned().collect();
+        return Vec::new();
     }
 
     pub fn stop(self) -> Result<(), Box<dyn Error>> {

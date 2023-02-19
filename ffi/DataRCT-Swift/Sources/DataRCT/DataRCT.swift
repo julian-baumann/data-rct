@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_DataRCT_2633_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_DataRCT_8ee_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_DataRCT_2633_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_DataRCT_8ee_rustbuffer_free(self, $0) }
     }
 }
 
@@ -336,6 +336,7 @@ public protocol DiscoveryProtocol {
     func stopAdvertising()
     func startSearch()
     func stopSearch()
+    func getDevices() -> [DeviceInfo]
 }
 
 public class Discovery: DiscoveryProtocol {
@@ -348,47 +349,57 @@ public class Discovery: DiscoveryProtocol {
         self.pointer = pointer
     }
 
-    public convenience init(myDevice: DeviceInfo, method: DiscoveryMethod) throws {
+    public convenience init(myDevice: DeviceInfo, method: DiscoveryMethod, delegate: DiscoveryDelegate?) throws {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeDiscoverySetupError.self) {
-                DataRCT_2633_Discovery_new(
+                DataRCT_8ee_Discovery_new(
                     FfiConverterTypeDeviceInfo.lower(myDevice),
-                    FfiConverterTypeDiscoveryMethod.lower(method), $0
+                    FfiConverterTypeDiscoveryMethod.lower(method),
+                    FfiConverterOptionCallbackInterfaceDiscoveryDelegate.lower(delegate), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_2633_Discovery_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_8ee_Discovery_object_free(pointer, $0) }
     }
 
     public func advertise() {
         try!
             rustCall {
-                DataRCT_2633_Discovery_advertise(self.pointer, $0)
+                DataRCT_8ee_Discovery_advertise(self.pointer, $0)
             }
     }
 
     public func stopAdvertising() {
         try!
             rustCall {
-                DataRCT_2633_Discovery_stop_advertising(self.pointer, $0)
+                DataRCT_8ee_Discovery_stop_advertising(self.pointer, $0)
             }
     }
 
     public func startSearch() {
         try!
             rustCall {
-                DataRCT_2633_Discovery_start_search(self.pointer, $0)
+                DataRCT_8ee_Discovery_start_search(self.pointer, $0)
             }
     }
 
     public func stopSearch() {
         try!
             rustCall {
-                DataRCT_2633_Discovery_stop_search(self.pointer, $0)
+                DataRCT_8ee_Discovery_stop_search(self.pointer, $0)
             }
+    }
+
+    public func getDevices() -> [DeviceInfo] {
+        return try! FfiConverterSequenceTypeDeviceInfo.lift(
+            try!
+                rustCall {
+                    DataRCT_8ee_Discovery_get_devices(self.pointer, $0)
+                }
+        )
     }
 }
 
@@ -586,6 +597,242 @@ public struct FfiConverterTypeDiscoverySetupError: FfiConverterRustBuffer {
 extension DiscoverySetupError: Equatable, Hashable {}
 
 extension DiscoverySetupError: Error {}
+
+private extension NSLock {
+    func withLock<T>(f: () throws -> T) rethrows -> T {
+        lock()
+        defer { self.unlock() }
+        return try f()
+    }
+}
+
+private typealias UniFFICallbackHandle = UInt64
+private class UniFFICallbackHandleMap<T> {
+    private var leftMap: [UniFFICallbackHandle: T] = [:]
+    private var counter: [UniFFICallbackHandle: UInt64] = [:]
+    private var rightMap: [ObjectIdentifier: UniFFICallbackHandle] = [:]
+
+    private let lock = NSLock()
+    private var currentHandle: UniFFICallbackHandle = 0
+    private let stride: UniFFICallbackHandle = 1
+
+    func insert(obj: T) -> UniFFICallbackHandle {
+        lock.withLock {
+            let id = ObjectIdentifier(obj as AnyObject)
+            let handle = rightMap[id] ?? {
+                currentHandle += stride
+                let handle = currentHandle
+                leftMap[handle] = obj
+                rightMap[id] = handle
+                return handle
+            }()
+            counter[handle] = (counter[handle] ?? 0) + 1
+            return handle
+        }
+    }
+
+    func get(handle: UniFFICallbackHandle) -> T? {
+        lock.withLock {
+            leftMap[handle]
+        }
+    }
+
+    func delete(handle: UniFFICallbackHandle) {
+        remove(handle: handle)
+    }
+
+    @discardableResult
+    func remove(handle: UniFFICallbackHandle) -> T? {
+        lock.withLock {
+            defer { counter[handle] = (counter[handle] ?? 1) - 1 }
+            guard counter[handle] == 1 else { return leftMap[handle] }
+            let obj = leftMap.removeValue(forKey: handle)
+            if let obj = obj {
+                rightMap.removeValue(forKey: ObjectIdentifier(obj as AnyObject))
+            }
+            return obj
+        }
+    }
+}
+
+// Magic number for the Rust proxy to call using the same mechanism as every other method,
+// to free the callback once it's dropped by Rust.
+private let IDX_CALLBACK_FREE: Int32 = 0
+
+// Declaration and FfiConverters for DiscoveryDelegate Callback Interface
+
+public protocol DiscoveryDelegate: AnyObject {
+    func deviceAdded(value: DeviceInfo)
+    func deviceRemoved(deviceId: String)
+}
+
+// The ForeignCallback that is passed to Rust.
+private let foreignCallbackCallbackInterfaceDiscoveryDelegate: ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+        func invokeDeviceAdded(_ swiftCallbackInterface: DiscoveryDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+
+            var reader = createReader(data: Data(rustBuffer: args))
+            swiftCallbackInterface.deviceAdded(
+                value: try FfiConverterTypeDeviceInfo.read(from: &reader)
+            )
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+        func invokeDeviceRemoved(_ swiftCallbackInterface: DiscoveryDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+
+            var reader = createReader(data: Data(rustBuffer: args))
+            swiftCallbackInterface.deviceRemoved(
+                deviceId: try FfiConverterString.read(from: &reader)
+            )
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+
+        let cb: DiscoveryDelegate
+        do {
+            cb = try FfiConverterCallbackInterfaceDiscoveryDelegate.lift(handle)
+        } catch {
+            out_buf.pointee = FfiConverterString.lower("DiscoveryDelegate: Invalid handle")
+            return -1
+        }
+
+        switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceDiscoveryDelegate.drop(handle: handle)
+            // No return value.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 0
+        case 1:
+            do {
+                out_buf.pointee = try invokeDeviceAdded(cb, args)
+                // Value written to out buffer.
+                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+                return 1
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return -1
+            }
+        case 2:
+            do {
+                out_buf.pointee = try invokeDeviceRemoved(cb, args)
+                // Value written to out buffer.
+                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+                return 1
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return -1
+            }
+
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return -1
+        }
+    }
+
+// FfiConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceDiscoveryDelegate {
+    // Initialize our callback method with the scaffolding code
+    private static var callbackInitialized = false
+    private static func initCallback() {
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            ffi_DataRCT_8ee_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
+        }
+    }
+
+    private static func ensureCallbackinitialized() {
+        if !callbackInitialized {
+            initCallback()
+            callbackInitialized = true
+        }
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<DiscoveryDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceDiscoveryDelegate: FfiConverter {
+    typealias SwiftType = DiscoveryDelegate
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized()
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized()
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized()
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized()
+        writeInt(&buf, lower(v))
+    }
+}
+
+private struct FfiConverterOptionCallbackInterfaceDiscoveryDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = DiscoveryDelegate?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceDiscoveryDelegate.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceDiscoveryDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterSequenceTypeDeviceInfo: FfiConverterRustBuffer {
+    typealias SwiftType = [DeviceInfo]
+
+    public static func write(_ value: [DeviceInfo], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDeviceInfo.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DeviceInfo] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DeviceInfo]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDeviceInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
 
 /**
  * Top level initializers and tear down methods.

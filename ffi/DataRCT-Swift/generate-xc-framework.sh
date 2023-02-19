@@ -4,12 +4,18 @@ FFI_PROJECT="../data_rct_ffi/Cargo.toml"
 
 # Colors
 CYAN="\e[36m"
+RED="\e[0;31m"
 GREEN="\e[32m"
 ENDCOLOR="\e[0m"
 
 function PrintInfo()
 {
     echo -e "${CYAN}$1${ENDCOLOR}"
+}
+
+function CheckForErrorAndExitIfNecessary()
+{
+    if [ "$?" != "0" ]; then echo -e "${RED}$1${ENDCOLOR}"; exit 1; fi
 }
 
 function PrintDone()
@@ -24,6 +30,7 @@ function BuildStaticLibrary()
     Target=$1
     PrintInfo "Building for $Target"
     cargo build --manifest-path $FFI_PROJECT --lib --release --target $Target
+    CheckForErrorAndExitIfNecessary
     
     PrintDone
 }
@@ -32,7 +39,8 @@ function GenerateUniffiBindings()
 {
     PrintInfo "Generating bindings"
     pushd ../data_rct_ffi
-        cargo run --bin uniffi-bindgen generate "src/data_rct.udl" --language swift --out-dir "../swift/Sources/DataRCT"
+        cargo run --bin uniffi-bindgen generate "src/data_rct.udl" --language swift --out-dir "../DataRCT-Swift/Sources/DataRCT"
+        CheckForErrorAndExitIfNecessary
     popd
 
     mv Sources/DataRCT/*.h .out/headers/
@@ -54,11 +62,15 @@ function CreateUniversalBinary()
         lipo -create \
           "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
           -output ".out/$Target/libdata_rct_ffi.a"
+          
+        CheckForErrorAndExitIfNecessary
     else
         lipo -create \
           "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
           "../data_rct_ffi/target/$SecondArchitecture/release/libdata_rct_ffi.a" \
           -output ".out/$Target/libdata_rct_ffi.a"
+                    
+        CheckForErrorAndExitIfNecessary
     fi
     
     PrintDone
@@ -79,7 +91,8 @@ function GenerateXcFramework()
       -library ./.out/ios-simulator/libdata_rct_ffi.a \
       -headers .out/headers/ \
       -output DataRCTFFI.xcframework
-      
+
+      CheckForErrorAndExitIfNecessary
       PrintDone
 }
 

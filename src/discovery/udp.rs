@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::net::{SocketAddr, UdpSocket};
 use std::io::ErrorKind;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
-use crossbeam_channel::{Receiver, Sender};
-use crate::discovery::{DeviceInfo, DiscoveryCommunication, ThreadCommunication};
+use crossbeam_channel::{Receiver};
+use crate::discovery::{DeviceInfo, DiscoveryDelegate, ThreadCommunication};
 use crate::transform::{ByteConvertable, get_utf8_message_part};
 
 const DISCOVERY_PORTS: [u16; 4] = [42400, 42410, 42420, 42430];
@@ -46,6 +48,7 @@ impl ByteConvertable for DeviceInfo {
     }
 }
 
+#[derive(Clone)]
 enum MessageType {
     Unknown,
     DeviceLookupRequest,
@@ -56,21 +59,24 @@ enum MessageType {
 pub struct UdpDiscovery<> {
     socket: UdpSocket,
     my_device: DeviceInfo,
-    discovery_sender: Sender<DiscoveryCommunication>,
     communication_receiver: Receiver<ThreadCommunication>,
-    advertise_my_device: bool
+    advertise_my_device: bool,
+    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>
 }
 
 impl UdpDiscovery {
     pub fn new(my_device: DeviceInfo,
-               discovery_sender: Sender<DiscoveryCommunication>,
-               communication_receiver: Receiver<ThreadCommunication>) -> Result<UdpDiscovery, Box<dyn Error>> {
+               communication_receiver: Receiver<ThreadCommunication>,
+               discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+               callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<UdpDiscovery, Box<dyn Error>> {
         return Ok(UdpDiscovery {
             socket: UdpDiscovery::open_udp_socket()?,
             my_device,
-            discovery_sender,
             communication_receiver,
-            advertise_my_device: false
+            advertise_my_device: false,
+            discovered_devices,
+            callback
         });
     }
 
@@ -101,7 +107,9 @@ impl UdpDiscovery {
         let message: Vec<u8> = self.create_message_with_header(MessageType::DeviceLookupRequest, &mut result);
 
         for port in DISCOVERY_PORTS {
-            self.socket.send_to(message.as_slice(), "255.255.255.255:".to_string() + port.to_string().as_str()).unwrap();
+            if let Err(error) = self.socket.send_to(message.as_slice(), "255.255.255.255:".to_string() + port.to_string().as_str()) {
+                println!("Failed to send lookup signal on port {port} ({error})");
+            }
         }
     }
 
@@ -121,7 +129,7 @@ impl UdpDiscovery {
                     ThreadCommunication::LookForDevices => { look_for_devices = true },
                     ThreadCommunication::StopLookingForDevices => { look_for_devices = false },
                     ThreadCommunication::AnswerToLookupRequest => { self.advertise_my_device = true },
-                    ThreadCommunication::StopAnsweringToLookupRequest => { self.advertise_my_device = false },
+                    ThreadCommunication::StopAnsweringToLookupRequest => { self.stop_advertising() },
                     ThreadCommunication::Shutdown => { return Ok(()) }
                 }
             }
@@ -194,6 +202,17 @@ impl UdpDiscovery {
         }
     }
 
+    fn stop_advertising(&mut self) {
+        self.advertise_my_device = false;
+        let message: Vec<u8> = self.create_message_with_header(MessageType::RemoveDeviceFromDiscovery, &mut self.my_device.to_bytes());
+
+        for port in DISCOVERY_PORTS {
+            if let Err(error) = self.socket.send_to(message.as_slice(), "255.255.255.255:".to_string() + port.to_string().as_str()) {
+                println!("Failed to send \"RemoveDeviceFromDiscovery\" signal on port {port} ({error})");
+            }
+        }
+    }
+
     fn manage_request(&mut self, sender_ip: SocketAddr, message: &mut Vec<u8>) -> Option<()> {
         let version = get_utf8_message_part(message)?;
 
@@ -210,11 +229,43 @@ impl UdpDiscovery {
                 },
                 MessageType::DeviceInfo => {
                     let device = DeviceInfo::from_bytes(message, sender_ip.ip().to_string())?;
-                    self.discovery_sender.try_send(DiscoveryCommunication::DeviceDiscovered(device)).ok();
+
+                    let mut is_new_device = false;
+
+                    if let Ok(mut discovered_devices) = self.discovered_devices.write() {
+                        match discovered_devices.insert(device.id.clone(), device.clone()) {
+                            Some(_) => is_new_device = false,
+                            None => is_new_device = true
+                        };
+                    }
+
+                    if is_new_device {
+                        if let Some(callback) = &self.callback {
+                            if let Ok(callback) = callback.lock() {
+                                callback.device_added(device);
+                            }
+                        }
+                    }
                 },
                 MessageType::RemoveDeviceFromDiscovery => {
                     let device_id = get_utf8_message_part(message)?;
-                    self.discovery_sender.try_send(DiscoveryCommunication::RemoveDevice(device_id)).ok();
+
+                    let mut was_already_deleted = false;
+
+                    if let Ok(mut discovered_devices) = self.discovered_devices.write() {
+                        match discovered_devices.remove(&device_id) {
+                            Some(_) => was_already_deleted = false,
+                            None => was_already_deleted = true
+                        }
+                    }
+
+                    if !was_already_deleted {
+                        if let Some(callback) = &self.callback {
+                            if let Ok(callback) = callback.lock() {
+                                callback.device_removed(device_id);
+                            }
+                        }
+                    }
                 },
                 _ => return None
             }

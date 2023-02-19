@@ -20,11 +20,18 @@ enum DiscoverySetupError {
     "UnableToSetupMdns"
 };
 
+callback interface DiscoveryDelegate {
+    void device_added(DeviceInfo value);
+    void device_removed(string device_id);
+};
+
 interface Discovery {
     [Throws=DiscoverySetupError]
-    constructor(DeviceInfo my_device, DiscoveryMethod method);
+    constructor(DeviceInfo my_device, DiscoveryMethod method, DiscoveryDelegate? delegate);
     void advertise();
     void stop_advertising();
     void start_search();
     void stop_search();
+
+    sequence<DeviceInfo> get_devices();
 };

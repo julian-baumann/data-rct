@@ -14,6 +14,7 @@ path = "uniffi-bindgen.rs"
 [dependencies]
 data_rct = { package = "data_rct", path = "../../../data_rct" }
 uniffi = { version = "0.23.0", features = ["cli"] }
+thiserror = "1.0"
 
 [build-dependencies]
 uniffi = { version = "0.23.0", features = ["build"] }
