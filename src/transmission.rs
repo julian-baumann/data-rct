@@ -9,7 +9,7 @@ use crate::PROTOCOL_VERSION;
 use uuid::Uuid;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use rand_core::OsRng;
-use crate::encryption::{EncryptedStream, generate_nonce};
+use crate::encryption::{EncryptedStream, generate_iv};
 use crate::stream::{check_result, Stream, IncomingErrors, ConnectErrors, StreamRead, StreamWrite};
 
 mod tcp;
@@ -216,7 +216,7 @@ impl Transmission {
         }
 
         // Generate random nonce for this session
-        let nonce = generate_nonce();
+        let nonce = generate_iv();
         match connection.write_stream(nonce.as_slice()) {
             Ok(_) => (),
             Err(error) => return Err(error)

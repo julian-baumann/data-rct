@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use chacha20::cipher::StreamCipherSeek;
 use rand_core::{OsRng, RngCore};
 use x25519_dalek::{EphemeralSecret, PublicKey};
-use data_rct::encryption::{EncryptedStream, generate_key, generate_nonce};
+use data_rct::encryption::{EncryptedStream, generate_key, generate_iv};
 use crate::helper::MemoryStream;
 
 mod helper;
@@ -26,7 +26,7 @@ pub fn diffie_hellman() {
 #[test]
 pub fn stream_encryption() {
     let key = generate_key();
-    let nonce = generate_nonce();
+    let nonce = generate_iv();
 
     let memory_stream = MemoryStream::new();
     let mut encrypted_stream = EncryptedStream::new(key as [u8; 32], nonce as [u8; 24], Box::new(memory_stream));
@@ -61,7 +61,7 @@ pub fn stream_encryption() {
 #[test]
 pub fn large_stream_encryption() {
     let key = generate_key();
-    let nonce = generate_nonce();
+    let nonce = generate_iv();
 
     let memory_stream = MemoryStream::new();
     let mut encrypted_stream = EncryptedStream::new(key as [u8; 32], nonce as [u8; 24], Box::new(memory_stream));

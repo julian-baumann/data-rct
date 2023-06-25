@@ -25,6 +25,19 @@ callback interface DiscoveryDelegate {
     void device_removed(string device_id);
 };
 
+[Error]
+interface ExternalIOError {
+    IOError(string reason);
+};
+
+interface EncryptedStream {
+    [Self=ByArc, Throws=ExternalIOError]
+    u64 read_bytes([ByRef] sequence<u8> buffer);
+
+//    [Self=ByArc, Throws=ExternalIOError]
+//    u64 write_bytes(sequence<u8> buffer);
+};
+
 interface Discovery {
     [Throws=DiscoverySetupError]
     constructor(DeviceInfo my_device, DiscoveryMethod method, DiscoveryDelegate? delegate);

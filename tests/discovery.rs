@@ -1,4 +1,3 @@
-use std::thread::sleep;
 use std::time::{Duration, Instant};
 use data_rct::discovery::{DeviceInfo, Discovery, DiscoveryMethod};
 
@@ -55,9 +54,9 @@ fn discover_device(method: DiscoveryMethod) {
 
 #[test]
 fn discovery() {
-    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::MDNS);
-    // discover_device(DiscoveryMethod::Both);
+    let foreign_discovery = setup_foreign_discovery(DiscoveryMethod::Both);
+    discover_device(DiscoveryMethod::Both);
     // sleep(Duration::from_secs(20));
-    loop {}
+    // loop {}
     foreign_discovery.stop().expect("Failed to stop foreign discovery");
 }

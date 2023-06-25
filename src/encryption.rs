@@ -2,23 +2,19 @@ use std::{io};
 use std::io::{Error, Read, Write};
 use std::io::ErrorKind::Other;
 use std::iter::repeat;
-use chacha20poly1305::AeadCore;
-use chacha20poly1305::KeyInit;
-use chacha20poly1305::XChaCha20Poly1305;
 use rand_core::{OsRng};
 use chacha20::{XChaCha20};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use crate::stream::{Stream, StreamRead, StreamWrite};
 
-
 pub fn generate_key() -> [u8; 32] {
-    let key = XChaCha20Poly1305::generate_key(&mut OsRng);
+    let key = XChaCha20::generate_key(&mut OsRng);
 
     return key.into();
 }
 
-pub fn generate_nonce() -> [u8; 24] {
-    let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
+pub fn generate_iv() -> [u8; 24] {
+    let nonce = XChaCha20::generate_iv(&mut OsRng);
 
     return nonce.into();
 }
@@ -32,8 +28,8 @@ impl StreamRead for EncryptedStream {}
 impl StreamWrite for EncryptedStream {}
 
 impl<'a> EncryptedStream {
-    pub fn new(key: [u8; 32], nonce: [u8; 24], stream: Box<dyn Stream>) -> Self {
-        let cipher = XChaCha20::new(&key.into(), &nonce.into());
+    pub fn new(key: [u8; 32], iv: [u8; 24], stream: Box<dyn Stream>) -> Self {
+        let cipher = XChaCha20::new(&key.into(), &iv.into());
 
         Self {
             cipher,

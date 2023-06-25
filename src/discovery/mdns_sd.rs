@@ -128,8 +128,8 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                                 }
                             }
                         }
+                    },
 
-                    }
                     ServiceEvent::ServiceRemoved(service_type, fullname) => {
                         if service_type == SERVICE_NAME {
                             let device_id = fullname.split(".").next();
