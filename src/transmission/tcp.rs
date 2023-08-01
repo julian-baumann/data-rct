@@ -2,9 +2,12 @@ use std::error::Error;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::Shutdown::Both;
 use crate::stream::{Stream, StreamRead, StreamWrite};
 use crate::transmission::{DataTransmission};
 
+
+// ==== Listener (Server) ====
 pub struct TcpTransmissionListener {
     pub port: u16,
     listener: TcpListener
@@ -40,8 +43,7 @@ impl DataTransmission for TcpTransmissionListener {
 }
 
 
-// ==== listener ====
-
+// ==== Client ====
 impl StreamRead for TcpTransmissionClient {}
 impl StreamWrite for TcpTransmissionClient {}
 impl Stream for TcpTransmissionClient {}
@@ -51,12 +53,16 @@ pub struct TcpTransmissionClient {
 }
 
 impl TcpTransmissionClient {
-    pub fn connect(address: SocketAddr) -> Result<TcpTransmissionClient, Box<dyn Error>> {
+    pub fn connect(address: SocketAddr) -> Result<Self, Box<dyn Error>> {
         let listener = TcpStream::connect(address)?;
 
         return Ok(Self {
             listener
         });
+    }
+
+    pub fn shutdown(&self) -> io::Result<()> {
+        return self.listener.shutdown(Both);
     }
 }
 

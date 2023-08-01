@@ -26,8 +26,8 @@ pub fn transmission_send() {
 
     thread::spawn(move || {
         loop {
-            let request = receive_transmission.get_incoming().unwrap().unwrap();
-            receive_transmission.accept(request).unwrap();
+            let request = receive_transmission.get_incoming_with_errors().unwrap().unwrap();
+            request.accept().unwrap();
         }
     });
 
@@ -63,10 +63,12 @@ pub fn transmission_receive() {
         let _encrypted_stream = transmission.open(&my_device_clone).unwrap();
     });
 
-    let transmission_request = receive_transmission.get_incoming().unwrap().unwrap();
+    let transmission_request = receive_transmission.get_incoming_with_errors().unwrap().unwrap();
     assert_eq!(transmission_request.sender_id, foreign_device.id);
     assert_eq!(transmission_request.sender_name, foreign_device.name);
     assert!(transmission_request.uuid.len() > 0);
+
+    transmission_request.accept().expect("Failed to accept transmission request");
 }
 
 
@@ -93,8 +95,8 @@ pub fn deny_transmission() {
 
     thread::spawn(move || {
         loop {
-            let request = receive_transmission.get_incoming().unwrap().unwrap();
-            receive_transmission.deny(request).unwrap();
+            let request = receive_transmission.get_incoming_with_errors().unwrap().unwrap();
+            request.deny().unwrap();
         }
     });
 

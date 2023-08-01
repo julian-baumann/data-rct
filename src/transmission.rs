@@ -1,19 +1,19 @@
 use std::error::Error;
-
 use anyhow::{Result};
 use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
 use crate::transmission::tcp::{TcpTransmissionClient, TcpTransmissionListener};
 use std::net::{ToSocketAddrs};
+use std::sync::Arc;
 use crate::PROTOCOL_VERSION;
 use uuid::Uuid;
+use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use rand_core::OsRng;
 use crate::encryption::{EncryptedStream, generate_iv};
 use crate::stream::{check_result, Stream, IncomingErrors, ConnectErrors, StreamRead, StreamWrite};
 
 mod tcp;
-
 
 const PUBLIC_KEY_SIZE: usize = 32;
 const UUID_LENGTH: usize = 16;
@@ -30,28 +30,60 @@ pub enum TransmissionMessageTunnel {
     ReceivedTransfer(Box<dyn Stream>)
 }
 
+pub struct TransmissionRequest {
+    pub uuid: String,
+    pub sender_id: String,
+    pub sender_name: String,
+    pub data_stream: Arc<EncryptedStream>
+}
+
+impl TransmissionRequest {
+    pub fn accept(&self) -> Result<EncryptedStream> {
+        self.data_stream.write_immutable(&[ACCEPT_TRANSMISSION])?;
+
+        return Ok(
+            self.data_stream.as_ref().clone()
+        );
+    }
+
+    pub fn deny(&self) -> Result<()> {
+        self.data_stream.write_immutable(&[DENY_TRANSMISSION])?;
+
+        return Ok(());
+    }
+}
+
+
+#[derive(Error, Debug)]
+pub enum TransmissionSetupError {
+    #[error("Unable to start TCP server.")]
+    UnableToStartTcpServer
+}
+
 pub struct Transmission {
     pub device_info: DeviceInfo,
     tcp_transmission: TcpTransmissionListener
 }
 
-pub struct TransmissionRequest {
-    pub uuid: String,
-    pub sender_id: String,
-    pub sender_name: String,
-    pub data_stream: EncryptedStream
-}
-
 impl Transmission {
-    pub fn new(device_info: DeviceInfo) -> Result<Self, Box<dyn Error>> {
-        let tcp_transmission =  TcpTransmissionListener::new()?;
+    pub fn new(device_info: DeviceInfo) -> Result<Self, TransmissionSetupError> {
+        let tcp_transmission = match TcpTransmissionListener::new() {
+            Ok(result) => result,
+            Err(_) => return Err(TransmissionSetupError::UnableToStartTcpServer)
+        };
+
+
         let mut modified_device = device_info.clone();
         modified_device.port = tcp_transmission.port;
 
         return Ok(Transmission {
             device_info: modified_device,
             tcp_transmission
-        })
+        });
+    }
+
+    pub fn get_port(&self) -> u16 {
+        return self.tcp_transmission.port;
     }
 
     fn encrypt_stream<'b>(&'b self, my_key: EphemeralSecret, foreign_key: [u8; 32], nonce: [u8; 24], stream: Box<dyn Stream>) -> Result<EncryptedStream, Box<dyn Error>> {
@@ -63,7 +95,21 @@ impl Transmission {
         return Ok(encrypted_stream);
     }
 
-    pub fn get_incoming(&self) -> Option<Result<TransmissionRequest, IncomingErrors>> {
+    pub fn get_incoming(&self) -> Option<TransmissionRequest> {
+        let request = self.get_incoming_with_errors();
+
+        if let Some(request) = request {
+            if let Ok(transmission_request) = request {
+                return Some(transmission_request);
+            } else if let Err(error) = request {
+                eprintln!("{}", error);
+            }
+        }
+
+        return None;
+    }
+
+    pub fn get_incoming_with_errors(&self) -> Option<Result<TransmissionRequest, IncomingErrors>> {
         if let Some(mut connection) = self.tcp_transmission.accept() {
             // == Version ==
             let protocol_version = connection.read_u8();
@@ -139,23 +185,11 @@ impl Transmission {
                 uuid: uuid.to_string(),
                 sender_id,
                 sender_name,
-                data_stream: encrypted_stream
+                data_stream: Arc::new(encrypted_stream)
             }));
         }
 
         return None;
-    }
-
-    pub fn accept(&self, mut request: TransmissionRequest) -> Result<EncryptedStream> {
-        request.data_stream.write(&[ACCEPT_TRANSMISSION])?;
-
-        return Ok(request.data_stream);
-    }
-
-    pub fn deny(&self, mut request: TransmissionRequest) -> Result<EncryptedStream> {
-        request.data_stream.write(&[DENY_TRANSMISSION])?;
-
-        return Ok(request.data_stream);
     }
 
     pub fn open(&self, recipient: &DeviceInfo) -> Result<EncryptedStream, ConnectErrors> {
@@ -175,13 +209,13 @@ impl Transmission {
 
         let connection = match connection {
             Ok(address) => address,
-            Err(_) => return Err(ConnectErrors::CouldNotOpenSocket),
+            Err(error) => return Err(ConnectErrors::CouldNotOpenSocket(error.to_string())),
         };
 
         return self.connect(Box::new(connection));
     }
 
-    pub fn connect(&self, mut connection: Box<dyn Stream>) -> Result<EncryptedStream, ConnectErrors>  {
+    fn connect(&self, mut connection: Box<dyn Stream>) -> Result<EncryptedStream, ConnectErrors>  {
         let transfer_id = Uuid::new_v4();
 
         // Send core header information

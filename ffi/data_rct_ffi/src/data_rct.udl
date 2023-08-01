@@ -1,4 +1,6 @@
-namespace DataRCT {};
+namespace DataRCT {
+    string get_local_ip();
+};
 
 dictionary DeviceInfo {
     string id;
@@ -31,11 +33,14 @@ interface ExternalIOError {
 };
 
 interface EncryptedStream {
-    [Self=ByArc, Throws=ExternalIOError]
-    u64 read_bytes([ByRef] sequence<u8> buffer);
+    [Throws=ExternalIOError]
+    u64 read_bytes(sequence<u8> buffer);
 
-//    [Self=ByArc, Throws=ExternalIOError]
-//    u64 write_bytes(sequence<u8> buffer);
+    [Throws=ExternalIOError]
+    u64 write_bytes(sequence<u8> buffer);
+
+    [Throws=ExternalIOError]
+    void flush_bytes();
 };
 
 interface Discovery {
@@ -47,4 +52,56 @@ interface Discovery {
     void stop_search();
 
     sequence<DeviceInfo> get_devices();
+};
+
+
+[Error]
+enum TransmissionSetupError {
+    "UnableToStartTcpServer"
+};
+
+[Error]
+enum IncomingErrors {
+    "UnknownReadError",
+    "StringConversionError",
+    "MissingProtocolVersion",
+    "InvalidVersion",
+    "InvalidUUID",
+    "InvalidForeignPublicKey",
+    "ErrorSendingPublicKey",
+    "InvalidNonce",
+    "EncryptionError",
+    "InvalidSenderId",
+    "InvalidSenderName",
+    "Rejected"
+};
+
+[Error]
+enum ConnectErrors {
+    "UnknownWriteError",
+    "UnknownReadError",
+    "InvalidSocketAddress",
+    "CouldNotOpenSocket",
+    "EncryptionError",
+    "InvalidForeignPublicKey",
+    "Rejected"
+};
+
+dictionary TransmissionRequest {
+    string uuid;
+    string sender_id;
+    string sender_name;
+    EncryptedStream data_stream;
+};
+
+interface Transmission {
+    [Throws=TransmissionSetupError]
+    constructor(DeviceInfo my_device);
+
+    TransmissionRequest? get_incoming();
+
+    [Throws=ConnectErrors]
+    EncryptedStream connect_to_device(DeviceInfo recipient);
+
+    u16 get_port();
 };

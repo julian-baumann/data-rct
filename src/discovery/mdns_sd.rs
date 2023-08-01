@@ -34,13 +34,21 @@ impl MdnsSdDiscovery {
             Some(properties)
         );
 
-        if let Ok(my_device) = my_device {
-            self.mdns_daemon.register(my_device).ok();
-        }
+        let my_device = match my_device {
+            Ok(result) => result,
+            Err(error) => {
+                eprintln!("Error, while trying to create Bonjour ServiceInfo: {}", error);
+                return;
+            }
+        };
+
+        self.mdns_daemon.register(my_device)
+            .expect("Error while trying to register mDNS service.");
     }
 
     fn stop_advertising(&self) {
-        self.mdns_daemon.unregister(&(self.my_device.name.replace(" ", "-").to_string() + ".local.")).ok();
+        self.mdns_daemon.unregister(&(self.my_device.name.replace(" ", "-").to_string() + ".local."))
+            .expect("Error while trying to unregister mDNS service.");
     }
 }
 
@@ -88,24 +96,28 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                         let id = properties.get("deviceId");
 
                         if let Some(id) = id {
-                            if id.ne(&self.my_device.id) {
+                            if id.val_str().ne(&self.my_device.id) {
                                 let name = properties.get("deviceName");
                                 let port = properties.get("port");
                                 let device_type = properties.get("type");
 
                                 if let (Some(name),
                                     Some(port),
-                                    Some(device_type)) = (name, port, device_type) {
+                                    Some(device_type),
+                                    Some(ip_address)) = (name, port, device_type, info.get_addresses().iter().next()) {
 
-                                    let port = port.to_string().parse::<u16>();
-
-                                    if let Ok(port) = port {
+                                    let port = port.val_str().parse::<u16>();
+                                    
+                                    if let Err(parse_error) = port {
+                                        eprintln!("Error while trying to parse port from mDNS-SD discovery: {:?}", parse_error);
+                                    }
+                                    else if let Ok(port) = port {
                                         let device = DeviceInfo {
                                             id: id.to_string(),
-                                            name: name.to_string(),
+                                            name: name.val_str().to_string(),
                                             port,
-                                            device_type: device_type.to_string(),
-                                            ip_address: "".to_string()
+                                            device_type: device_type.val_str().to_string(),
+                                            ip_address: ip_address.to_string()
                                         };
 
                                         let mut is_new_device = false;

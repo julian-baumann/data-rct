@@ -56,8 +56,8 @@ pub enum ConnectErrors {
     #[error("Invalid socket address")]
     InvalidSocketAddress,
 
-    #[error("Unable to open socket")]
-    CouldNotOpenSocket,
+    #[error("Unable to open socket: {0}")]
+    CouldNotOpenSocket(String),
 
     #[error("Error while trying to encrypt stream: {0}")]
     EncryptionError(String),
@@ -128,6 +128,5 @@ pub trait StreamWrite: Write {
     }
 }
 
-pub trait Stream: StreamRead + StreamWrite + DowncastSync {
-}
+pub trait Stream: StreamRead + StreamWrite + DowncastSync { }
 impl_downcast!(sync Stream);
