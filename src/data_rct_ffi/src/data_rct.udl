@@ -1,0 +1,109 @@
+namespace DataRCT {
+};
+
+dictionary DeviceInfo {
+    string id;
+    string name;
+    u16 port;
+    string device_type;
+    string ip_address;
+};
+
+enum DiscoveryMethod {
+    "Both",
+    "MDNS",
+    "UDP"
+};
+
+[Error]
+enum DiscoverySetupError {
+    "UnableToSetupUdp",
+    "UnableToSetupMdns"
+};
+
+callback interface DiscoveryDelegate {
+    void device_added(DeviceInfo value);
+    void device_removed(string device_id);
+};
+
+[Error]
+interface ExternalIOError {
+    IOError(string reason);
+};
+
+interface EncryptedStream {
+    [Throws=ExternalIOError]
+    u64 write_bytes(sequence<u8> buffer);
+
+    [Throws=ExternalIOError]
+    void flush_bytes();
+};
+
+interface Discovery {
+    [Throws=DiscoverySetupError]
+    constructor(DeviceInfo my_device, DiscoveryMethod method, DiscoveryDelegate? delegate);
+    void advertise();
+    void stop_advertising();
+    void start_search();
+    void stop_search();
+
+    sequence<DeviceInfo> get_devices();
+};
+
+
+[Error]
+enum TransmissionSetupError {
+    "UnableToStartTcpServer"
+};
+
+[Error]
+enum IncomingErrors {
+    "UnknownReadError",
+    "StringConversionError",
+    "MissingProtocolVersion",
+    "InvalidVersion",
+    "InvalidUUID",
+    "InvalidForeignPublicKey",
+    "ErrorSendingPublicKey",
+    "InvalidNonce",
+    "EncryptionError",
+    "InvalidSenderId",
+    "InvalidSenderName",
+    "Rejected"
+};
+
+[Error]
+enum ConnectErrors {
+    "UnknownWriteError",
+    "UnknownReadError",
+    "InvalidSocketAddress",
+    "CouldNotOpenSocket",
+    "EncryptionError",
+    "InvalidForeignPublicKey",
+    "Rejected"
+};
+
+
+interface TransmissionRequest {
+    string get_session_uuid();
+    string get_sender_id();
+    string get_sender_name();
+
+    [Throws=ExternalIOError]
+    EncryptedStream accept();
+
+    [Throws=ExternalIOError]
+    void deny();
+};
+
+interface Transmission {
+    [Throws=TransmissionSetupError]
+    constructor(DeviceInfo my_device);
+
+    TransmissionRequest? get_incoming();
+
+    [Throws=ConnectErrors]
+    EncryptedStream connect_to_device(DeviceInfo recipient);
+
+    u16 get_port();
+};
