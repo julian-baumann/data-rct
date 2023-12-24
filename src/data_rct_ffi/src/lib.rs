@@ -29,7 +29,6 @@ pub unsafe extern fn read_unsafe(encrypted_stream: *mut EncryptedStream, buffer:
 }
 
 trait UniffiReadWrite {
-    fn read_bytes(&self, read_buffer_capacity: u8) -> Result<Vec<u8>, ExternalIOError>;
     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
     fn flush_bytes(&self) -> Result<(), ExternalIOError>;
 }

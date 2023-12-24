@@ -18,16 +18,19 @@ let package = Package(
     targets: [
         .target(
             name: "DataRCT",
-            dependencies: ["DataRCTFFI"]
+            dependencies: ["DataRCTFFI"],
+            path: "bindings/swift/Sources"
         ),
 
         .binaryTarget(
             name: "DataRCTFFI",
-            path: "DataRCTFFI.xcframework"
+            path: "bindings/swift/DataRCTFFI.xcframework"
         ),
 
         .testTarget(
             name: "DataRCTTests",
-            dependencies: ["DataRCT"]),
+            dependencies: ["DataRCT"],
+            path: "bindings/swift/Tests"
+        ),
     ]
 )

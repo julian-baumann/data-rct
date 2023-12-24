@@ -5,3 +5,15 @@ Cargo.lock
 .idea/shelf
 target
 **/target/
+.swiftpm/config/registries.json
+xcuserdata
+/.build
+/Packages
+/*.xcodeproj
+xcuserdata/
+DerivedData/
+.swiftpm/config/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+.out
+DataRCTFFI.xcframework

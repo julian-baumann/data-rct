@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-FFI_PROJECT="../data_rct_ffi/Cargo.toml"
+FFI_PROJECT="src/data_rct_ffi/Cargo.toml"
 
 # Colors
 CYAN="\e[36m"
@@ -38,13 +38,13 @@ function BuildStaticLibrary()
 function GenerateUniffiBindings()
 {
     PrintInfo "Generating bindings"
-    pushd ../data_rct_ffi
-        cargo run --bin uniffi-bindgen generate "src/data_rct.udl" --language swift --out-dir "../DataRCT-Swift/Sources/DataRCT"
-        CheckForErrorAndExitIfNecessary
-    popd
+    cargo run --bin uniffi-bindgen generate "src/data_rct_ffi/src/data_rct.udl" --language swift --out-dir "bindings/swift/Sources/DataRCT"
+    CheckForErrorAndExitIfNecessary
 
-    mv Sources/DataRCT/*.h .out/headers/
-    mv Sources/DataRCT/*.modulemap .out/headers/module.modulemap
+    pushd bindings/swift
+        mv Sources/DataRCT/*.h .out/headers/
+        mv Sources/DataRCT/*.modulemap .out/headers/module.modulemap
+    popd
 
     PrintDone
 }
@@ -60,15 +60,15 @@ function CreateUniversalBinary()
     if [ -z "$SecondArchitecture" ]
     then
         lipo -create \
-          "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
-          -output ".out/$Target/libdata_rct_ffi.a"
+          "target/$FirstArchitecture/release/libdata_rct_ffi.a" \
+          -output "bindings/swift/.out/$Target/libdata_rct_ffi.a"
 
         CheckForErrorAndExitIfNecessary
     else
         lipo -create \
-          "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
-          "../data_rct_ffi/target/$SecondArchitecture/release/libdata_rct_ffi.a" \
-          -output ".out/$Target/libdata_rct_ffi.a"
+          "target/$FirstArchitecture/release/libdata_rct_ffi.a" \
+          "target/$SecondArchitecture/release/libdata_rct_ffi.a" \
+          -output "bindings/swift/.out/$Target/libdata_rct_ffi.a"
 
         CheckForErrorAndExitIfNecessary
     fi
@@ -80,31 +80,31 @@ function GenerateXcFramework()
 {
     PrintInfo "Generating xc-framework"
 
-    rm -rf DataRCTFFI.xcframework
+    rm -rf bindings/swift/DataRCTFFI.xcframework
 
     xcodebuild -create-xcframework \
-      -library ./.out/macos/libdata_rct_ffi.a \
-      -headers .out/headers/ \
-      -library ./.out/ios/libdata_rct_ffi.a \
-      -headers .out/headers/ \
-      -library ./.out/ios-simulator/libdata_rct_ffi.a \
-      -headers .out/headers/ \
-      -output DataRCTFFI.xcframework
+      -library bindings/swift/.out/macos/libdata_rct_ffi.a \
+      -headers bindings/swift/.out/headers/ \
+      -library bindings/swift/.out/ios/libdata_rct_ffi.a \
+      -headers bindings/swift/.out/headers/ \
+      -library bindings/swift/.out/ios-simulator/libdata_rct_ffi.a \
+      -headers bindings/swift/.out/headers/ \
+      -output bindings/swift/DataRCTFFI.xcframework
 
-      CheckForErrorAndExitIfNecessary
-      PrintDone
+    CheckForErrorAndExitIfNecessary
+    PrintDone
 }
 
 
 
 # ======= main =======
 
-rm -rf .out
-mkdir .out
-mkdir .out/headers
-mkdir .out/macos
-mkdir .out/ios
-mkdir .out/ios-simulator
+rm -rf bindings/swift/.out
+mkdir bindings/swift/.out
+mkdir bindings/swift/.out/headers
+mkdir bindings/swift/.out/macos
+mkdir bindings/swift/.out/ios
+mkdir bindings/swift/.out/ios-simulator
 
 # iOS
 BuildStaticLibrary aarch64-apple-ios
@@ -127,4 +127,4 @@ GenerateXcFramework
 
 #zip -r DataRCTFFI.xcframework.zip DataRCTFFI.xcframework
 
-rm -rf .out
+rm -rf bindings/swift/.out

@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_DataRCT_4c48_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_DataRCT_e3f7_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_DataRCT_4c48_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_DataRCT_e3f7_rustbuffer_free(self, $0) }
     }
 }
 
@@ -379,7 +379,7 @@ public class Discovery: DiscoveryProtocol {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeDiscoverySetupError.self) {
-                DataRCT_4c48_Discovery_new(
+                DataRCT_e3f7_Discovery_new(
                     FfiConverterTypeDeviceInfo.lower(myDevice),
                     FfiConverterTypeDiscoveryMethod.lower(method),
                     FfiConverterOptionCallbackInterfaceDiscoveryDelegate.lower(delegate), $0
@@ -388,34 +388,34 @@ public class Discovery: DiscoveryProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_4c48_Discovery_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_e3f7_Discovery_object_free(pointer, $0) }
     }
 
     public func advertise() {
         try!
             rustCall {
-                DataRCT_4c48_Discovery_advertise(self.pointer, $0)
+                DataRCT_e3f7_Discovery_advertise(self.pointer, $0)
             }
     }
 
     public func stopAdvertising() {
         try!
             rustCall {
-                DataRCT_4c48_Discovery_stop_advertising(self.pointer, $0)
+                DataRCT_e3f7_Discovery_stop_advertising(self.pointer, $0)
             }
     }
 
     public func startSearch() {
         try!
             rustCall {
-                DataRCT_4c48_Discovery_start_search(self.pointer, $0)
+                DataRCT_e3f7_Discovery_start_search(self.pointer, $0)
             }
     }
 
     public func stopSearch() {
         try!
             rustCall {
-                DataRCT_4c48_Discovery_stop_search(self.pointer, $0)
+                DataRCT_e3f7_Discovery_stop_search(self.pointer, $0)
             }
     }
 
@@ -423,7 +423,7 @@ public class Discovery: DiscoveryProtocol {
         return try! FfiConverterSequenceTypeDeviceInfo.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_Discovery_get_devices(self.pointer, $0)
+                    DataRCT_e3f7_Discovery_get_devices(self.pointer, $0)
                 }
         )
     }
@@ -460,7 +460,6 @@ public struct FfiConverterTypeDiscovery: FfiConverter {
 }
 
 public protocol EncryptedStreamProtocol {
-    func readBytes(buffer: [UInt8]) throws -> UInt64
     func writeBytes(buffer: [UInt8]) throws -> UInt64
     func flushBytes() throws
 }
@@ -476,24 +475,14 @@ public class EncryptedStream: EncryptedStreamProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_4c48_EncryptedStream_object_free(pointer, $0) }
-    }
-
-    public func readBytes(buffer: [UInt8]) throws -> UInt64 {
-        return try FfiConverterUInt64.lift(
-            try
-                rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                    DataRCT_4c48_EncryptedStream_read_bytes(self.pointer,
-                                                            FfiConverterSequenceUInt8.lower(buffer), $0)
-                }
-        )
+        try! rustCall { ffi_DataRCT_e3f7_EncryptedStream_object_free(pointer, $0) }
     }
 
     public func writeBytes(buffer: [UInt8]) throws -> UInt64 {
         return try FfiConverterUInt64.lift(
             try
                 rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                    DataRCT_4c48_EncryptedStream_write_bytes(self.pointer,
+                    DataRCT_e3f7_EncryptedStream_write_bytes(self.pointer,
                                                              FfiConverterSequenceUInt8.lower(buffer), $0)
                 }
         )
@@ -502,7 +491,7 @@ public class EncryptedStream: EncryptedStreamProtocol {
     public func flushBytes() throws {
         try
             rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                DataRCT_4c48_EncryptedStream_flush_bytes(self.pointer, $0)
+                DataRCT_e3f7_EncryptedStream_flush_bytes(self.pointer, $0)
             }
     }
 }
@@ -557,21 +546,21 @@ public class Transmission: TransmissionProtocol {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeTransmissionSetupError.self) {
-                DataRCT_4c48_Transmission_new(
+                DataRCT_e3f7_Transmission_new(
                     FfiConverterTypeDeviceInfo.lower(myDevice), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_4c48_Transmission_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_e3f7_Transmission_object_free(pointer, $0) }
     }
 
     public func getIncoming() -> TransmissionRequest? {
         return try! FfiConverterOptionTypeTransmissionRequest.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_Transmission_get_incoming(self.pointer, $0)
+                    DataRCT_e3f7_Transmission_get_incoming(self.pointer, $0)
                 }
         )
     }
@@ -580,7 +569,7 @@ public class Transmission: TransmissionProtocol {
         return try FfiConverterTypeEncryptedStream.lift(
             try
                 rustCallWithError(FfiConverterTypeConnectErrors.self) {
-                    DataRCT_4c48_Transmission_connect_to_device(self.pointer,
+                    DataRCT_e3f7_Transmission_connect_to_device(self.pointer,
                                                                 FfiConverterTypeDeviceInfo.lower(recipient), $0)
                 }
         )
@@ -590,7 +579,7 @@ public class Transmission: TransmissionProtocol {
         return try! FfiConverterUInt16.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_Transmission_get_port(self.pointer, $0)
+                    DataRCT_e3f7_Transmission_get_port(self.pointer, $0)
                 }
         )
     }
@@ -645,14 +634,14 @@ public class TransmissionRequest: TransmissionRequestProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_4c48_TransmissionRequest_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_e3f7_TransmissionRequest_object_free(pointer, $0) }
     }
 
     public func getSessionUuid() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_TransmissionRequest_get_session_uuid(self.pointer, $0)
+                    DataRCT_e3f7_TransmissionRequest_get_session_uuid(self.pointer, $0)
                 }
         )
     }
@@ -661,7 +650,7 @@ public class TransmissionRequest: TransmissionRequestProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_TransmissionRequest_get_sender_id(self.pointer, $0)
+                    DataRCT_e3f7_TransmissionRequest_get_sender_id(self.pointer, $0)
                 }
         )
     }
@@ -670,7 +659,7 @@ public class TransmissionRequest: TransmissionRequestProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    DataRCT_4c48_TransmissionRequest_get_sender_name(self.pointer, $0)
+                    DataRCT_e3f7_TransmissionRequest_get_sender_name(self.pointer, $0)
                 }
         )
     }
@@ -679,7 +668,7 @@ public class TransmissionRequest: TransmissionRequestProtocol {
         return try FfiConverterTypeEncryptedStream.lift(
             try
                 rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                    DataRCT_4c48_TransmissionRequest_accept(self.pointer, $0)
+                    DataRCT_e3f7_TransmissionRequest_accept(self.pointer, $0)
                 }
         )
     }
@@ -687,7 +676,7 @@ public class TransmissionRequest: TransmissionRequestProtocol {
     public func deny() throws {
         try
             rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                DataRCT_4c48_TransmissionRequest_deny(self.pointer, $0)
+                DataRCT_e3f7_TransmissionRequest_deny(self.pointer, $0)
             }
     }
 }
@@ -1329,7 +1318,7 @@ private enum FfiConverterCallbackInterfaceDiscoveryDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_DataRCT_4c48_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
+            ffi_DataRCT_e3f7_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
         }
     }
 
@@ -1461,16 +1450,6 @@ private struct FfiConverterSequenceTypeDeviceInfo: FfiConverterRustBuffer {
         }
         return seq
     }
-}
-
-public func getLocalIp() -> String {
-    return try! FfiConverterString.lift(
-        try!
-
-            rustCall {
-                DataRCT_4c48_get_local_ip($0)
-            }
-    )
 }
 
 /**

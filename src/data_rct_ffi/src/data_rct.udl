@@ -1,5 +1,4 @@
 namespace DataRCT {
-    string get_local_ip();
 };
 
 dictionary DeviceInfo {
@@ -33,9 +32,6 @@ interface ExternalIOError {
 };
 
 interface EncryptedStream {
-    [Throws=ExternalIOError]
-    u64 read_bytes(sequence<u8> buffer);
-
     [Throws=ExternalIOError]
     u64 write_bytes(sequence<u8> buffer);
 
