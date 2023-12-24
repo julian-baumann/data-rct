@@ -66,7 +66,7 @@ pub enum ConnectErrors {
     InvalidForeignPublicKey(String),
 
     #[error("Recipient rejected the transmission")]
-    Rejected,
+    Rejected
 }
 
 pub fn check_result(result: core::result::Result<usize, io::Error>, error: IncomingErrors, expected_length: Option<usize>) -> Option<IncomingErrors> {

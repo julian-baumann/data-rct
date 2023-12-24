@@ -1,12 +1,13 @@
 uniffi::include_scaffolding!("data_rct");
 
 use std::io;
+use std::io::Read;
 use std::sync::Arc;
 pub use data_rct::discovery::{DeviceInfo, Discovery, DiscoveryMethod, DiscoverySetupError, DiscoveryDelegate};
 pub use data_rct::encryption::{EncryptedStream};
-use data_rct::get_local_ip;
 pub use data_rct::transmission::{Transmission, TransmissionSetupError, TransmissionRequest};
 pub use data_rct::stream::{ConnectErrors, IncomingErrors};
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExternalIOError {
@@ -20,19 +21,20 @@ impl From<io::Error> for ExternalIOError {
     }
 }
 
+#[no_mangle]
+pub unsafe extern fn read_unsafe(encrypted_stream: *mut EncryptedStream, buffer: *mut [u8]) -> u64 {
+    let result = (*encrypted_stream).read(&mut (*buffer));
+
+    return 0;
+}
+
 trait UniffiReadWrite {
-    fn read_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
+    fn read_bytes(&self, read_buffer_capacity: u8) -> Result<Vec<u8>, ExternalIOError>;
     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
     fn flush_bytes(&self) -> Result<(), ExternalIOError>;
 }
 
 impl UniffiReadWrite for EncryptedStream {
-    fn read_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError> {
-        return Ok(
-            self.read_immutable(buffer.leak())? as u64
-        );
-    }
-
     fn write_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError> {
         return Ok(
             self.write_immutable(buffer.as_slice())? as u64

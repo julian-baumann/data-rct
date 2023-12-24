@@ -9,10 +9,10 @@ mod helper;
 
 #[test]
 pub fn diffie_hellman() {
-    let alice_secret = EphemeralSecret::new(OsRng);
+    let alice_secret = EphemeralSecret::random_from_rng(OsRng);
     let alice_public_key = PublicKey::from(&alice_secret);
 
-    let bob_secret = EphemeralSecret::new(OsRng);
+    let bob_secret = EphemeralSecret::random_from_rng(OsRng);
     let bob_public_key = PublicKey::from(&bob_secret);
 
     assert_ne!(alice_public_key.as_bytes(), bob_public_key.as_bytes());

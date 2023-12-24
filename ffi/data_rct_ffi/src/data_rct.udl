@@ -87,11 +87,17 @@ enum ConnectErrors {
     "Rejected"
 };
 
-dictionary TransmissionRequest {
-    string uuid;
-    string sender_id;
-    string sender_name;
-    EncryptedStream data_stream;
+
+interface TransmissionRequest {
+    string get_session_uuid();
+    string get_sender_id();
+    string get_sender_name();
+
+    [Throws=ExternalIOError]
+    EncryptedStream accept();
+
+    [Throws=ExternalIOError]
+    void deny();
 };
 
 interface Transmission {

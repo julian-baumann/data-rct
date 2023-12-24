@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io;
 use anyhow::{Result};
 use std::io::{Read, Write};
 use crate::discovery::DeviceInfo;
@@ -38,15 +39,27 @@ pub struct TransmissionRequest {
 }
 
 impl TransmissionRequest {
-    pub fn accept(&self) -> Result<EncryptedStream> {
+    pub fn get_session_uuid(&self) -> String {
+        return self.uuid.to_string();
+    }
+
+    pub fn get_sender_id(&self) -> String {
+        return self.sender_id.to_string();
+    }
+
+    pub fn get_sender_name(&self) -> String {
+        return self.sender_name.to_string();
+    }
+
+    pub fn accept(&self) -> io::Result<Arc<EncryptedStream>> {
         self.data_stream.write_immutable(&[ACCEPT_TRANSMISSION])?;
 
         return Ok(
-            self.data_stream.as_ref().clone()
+            self.data_stream.clone()
         );
     }
 
-    pub fn deny(&self) -> Result<()> {
+    pub fn deny(&self) -> io::Result<()> {
         self.data_stream.write_immutable(&[DENY_TRANSMISSION])?;
 
         return Ok(());
@@ -95,12 +108,12 @@ impl Transmission {
         return Ok(encrypted_stream);
     }
 
-    pub fn get_incoming(&self) -> Option<TransmissionRequest> {
+    pub fn get_incoming(&self) -> Option<Arc<TransmissionRequest>> {
         let request = self.get_incoming_with_errors();
 
         if let Some(request) = request {
             if let Ok(transmission_request) = request {
-                return Some(transmission_request);
+                return Some(Arc::new(transmission_request));
             } else if let Err(error) = request {
                 eprintln!("{}", error);
             }
@@ -137,7 +150,7 @@ impl Transmission {
                 Err(error) => return Some(Err(error))
             };
 
-            let session_secret_key = EphemeralSecret::new(OsRng);
+            let session_secret_key = EphemeralSecret::random_from_rng(OsRng);
             let session_public_key = PublicKey::from(&session_secret_key);
             let result = connection.write(session_public_key.as_bytes());
 
@@ -229,7 +242,7 @@ impl Transmission {
         };
 
         // Diffie-hellman key exchange - send my key, read foreign key -> generate combined key for session encryption
-        let session_secret_key = EphemeralSecret::new(OsRng);
+        let session_secret_key = EphemeralSecret::random_from_rng(OsRng);
         let session_public_key = PublicKey::from(&session_secret_key);
 
         match connection.write_stream(session_public_key.as_bytes()) {

@@ -20,12 +20,12 @@ let package = Package(
             name: "DataRCT",
             dependencies: ["DataRCTFFI"]
         ),
-        
+
         .binaryTarget(
             name: "DataRCTFFI",
             path: "DataRCTFFI.xcframework"
         ),
-        
+
         .testTarget(
             name: "DataRCTTests",
             dependencies: ["DataRCT"]),

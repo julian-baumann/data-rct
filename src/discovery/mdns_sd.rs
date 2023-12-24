@@ -107,7 +107,7 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                                     Some(ip_address)) = (name, port, device_type, info.get_addresses().iter().next()) {
 
                                     let port = port.val_str().parse::<u16>();
-                                    
+
                                     if let Err(parse_error) = port {
                                         eprintln!("Error while trying to parse port from mDNS-SD discovery: {:?}", parse_error);
                                     }

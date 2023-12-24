@@ -9,6 +9,7 @@ use local_ip_address::local_ip;
 
 
 const PROTOCOL_VERSION: u8 = 0x01;
+const SERVICE_NAME: &str = "_data-rct._tcp.local.";
 
 pub fn get_local_ip() -> String {
     return match local_ip() {

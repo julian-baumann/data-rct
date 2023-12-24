@@ -31,7 +31,7 @@ function BuildStaticLibrary()
     PrintInfo "Building for $Target"
     cargo build --manifest-path $FFI_PROJECT --lib --release --target $Target
     CheckForErrorAndExitIfNecessary
-    
+
     PrintDone
 }
 
@@ -45,7 +45,7 @@ function GenerateUniffiBindings()
 
     mv Sources/DataRCT/*.h .out/headers/
     mv Sources/DataRCT/*.modulemap .out/headers/module.modulemap
-    
+
     PrintDone
 }
 
@@ -54,7 +54,7 @@ function CreateUniversalBinary()
     Target=$1
     FirstArchitecture=$2
     SecondArchitecture=$3
- 
+
     PrintInfo "Generating universal binary for $Target"
 
     if [ -z "$SecondArchitecture" ]
@@ -62,17 +62,17 @@ function CreateUniversalBinary()
         lipo -create \
           "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
           -output ".out/$Target/libdata_rct_ffi.a"
-          
+
         CheckForErrorAndExitIfNecessary
     else
         lipo -create \
           "../data_rct_ffi/target/$FirstArchitecture/release/libdata_rct_ffi.a" \
           "../data_rct_ffi/target/$SecondArchitecture/release/libdata_rct_ffi.a" \
           -output ".out/$Target/libdata_rct_ffi.a"
-                    
+
         CheckForErrorAndExitIfNecessary
     fi
-    
+
     PrintDone
 }
 
@@ -80,7 +80,6 @@ function GenerateXcFramework()
 {
     PrintInfo "Generating xc-framework"
 
-    
     rm -rf DataRCTFFI.xcframework
 
     xcodebuild -create-xcframework \
