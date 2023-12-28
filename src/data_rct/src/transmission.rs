@@ -2,7 +2,6 @@ use std::error::Error;
 use std::io;
 use anyhow::{Result};
 use std::io::{Read, Write};
-use crate::discovery::DeviceInfo;
 use crate::transmission::tcp::{TcpTransmissionClient, TcpTransmissionListener};
 use std::net::{ToSocketAddrs};
 use std::sync::Arc;
@@ -11,6 +10,7 @@ use uuid::Uuid;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use rand_core::OsRng;
+use protocol::discovery::Device;
 use crate::encryption::{EncryptedStream, generate_iv};
 use crate::stream::{check_result, Stream, IncomingErrors, ConnectErrors, StreamRead, StreamWrite};
 
@@ -74,12 +74,12 @@ pub enum TransmissionSetupError {
 }
 
 pub struct Transmission {
-    pub device_info: DeviceInfo,
+    pub device_info: Device,
     tcp_transmission: TcpTransmissionListener
 }
 
 impl Transmission {
-    pub fn new(device_info: DeviceInfo) -> Result<Self, TransmissionSetupError> {
+    pub fn new(device_info: Device) -> Result<Self, TransmissionSetupError> {
         let tcp_transmission = match TcpTransmissionListener::new() {
             Ok(result) => result,
             Err(_) => return Err(TransmissionSetupError::UnableToStartTcpServer)
@@ -205,7 +205,7 @@ impl Transmission {
         return None;
     }
 
-    pub fn open(&self, recipient: &DeviceInfo) -> Result<EncryptedStream, ConnectErrors> {
+    pub fn open(&self, recipient: &Device) -> Result<EncryptedStream, ConnectErrors> {
         let socket_address = (recipient.ip_address.as_str(), recipient.port).to_socket_addrs();
 
         let mut socket_address = match socket_address {

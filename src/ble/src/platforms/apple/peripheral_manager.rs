@@ -1,27 +1,14 @@
-use std::{
-    ffi::CString,
-    sync::{Once},
-};
+use std::{ffi::CString, sync::{Once}};
 use objc::{class, declare::ClassDecl, msg_send, runtime::{BOOL, Class, NO, Object, Protocol, Sel, YES}, sel, sel_impl};
-use objc_foundation::{
-    INSArray, INSDictionary, INSString, NSArray, NSDictionary, NSObject, NSString,
-};
+use objc_foundation::{INSArray, INSDictionary, INSString, NSArray, NSDictionary, NSObject, NSString, };
 use objc_id::{Id, Shared};
+use crate::{DISCOVERY_CHARACTERISTIC_UUID, DISCOVERY_SERVICE_UUID};
 
-use crate::platforms::apple::constants::{DISCOVERY_CHARACTERISTIC_UUID, DISCOVERY_SERVICE_UUID};
 use crate::platforms::apple::converter::{IntoBool, IntoCBUUID};
 use crate::platforms::apple::events::{peripheral_manager_did_add_service_error, peripheral_manager_did_receive_read_request, peripheral_manager_did_receive_write_requests, peripheral_manager_did_start_advertising_error};
 use crate::platforms::apple::ffi::{CBAttributePermissions, CBCharacteristicProperties, dispatch_queue_create, DISPATCH_QUEUE_SERIAL, nil};
 
-use super::{
-    constants::{PERIPHERAL_MANAGER_DELEGATE_CLASS_NAME, PERIPHERAL_MANAGER_IVAR, POWERED_ON_IVAR},
-    events::{
-        peripheral_manager_did_update_state,
-    },
-    ffi::{
-        CBAdvertisementDataServiceUUIDsKey,
-    }
-};
+use super::{constants::{PERIPHERAL_MANAGER_DELEGATE_CLASS_NAME, PERIPHERAL_MANAGER_IVAR, POWERED_ON_IVAR}, events::{peripheral_manager_did_update_state}, ffi::{CBAdvertisementDataServiceUUIDsKey}};
 
 static REGISTER_DELEGATE_CLASS: Once = Once::new();
 
@@ -111,11 +98,6 @@ impl PeripheralManager {
         let mut objects: Vec<Id<NSObject>> = vec![];
 
         unsafe {
-            // keys.push(&*(CBAdvertisementDataLocalNameKey as *mut NSString));
-            // objects.push(Id::from_retained_ptr(msg_send![
-            //     NSString::from_str(name),
-            //     copy
-            // ]));
             keys.push(&*(CBAdvertisementDataServiceUUIDsKey as *mut NSString));
             objects.push(Id::from_retained_ptr(msg_send![
                 NSArray::from_vec(vec![Id::<NSObject>::from_retained_ptr(service_uuid as *mut NSObject)]),

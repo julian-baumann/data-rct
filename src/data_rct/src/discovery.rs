@@ -11,7 +11,7 @@ use thiserror::Error;
 use protocol::discovery::Device;
 use crate::discovery::mdns_sd::MdnsSdDiscovery;
 use crate::discovery::udp::UdpDiscovery;
-use crate::get_local_ip;
+
 
 #[derive(PartialEq)]
 pub enum ThreadCommunication {
@@ -31,7 +31,8 @@ pub enum DiscoveryCommunication {
 pub enum DiscoveryMethod {
     Both,
     MDNS,
-    UDP
+    UDP,
+    BLE
 }
 
 #[derive(Error, Debug)]
@@ -49,31 +50,32 @@ impl fmt::Display for DiscoveryMethod {
             DiscoveryMethod::Both => write!(f, "Both"),
             DiscoveryMethod::MDNS => write!(f, "MDNS"),
             DiscoveryMethod::UDP => write!(f, "UDP"),
+            DiscoveryMethod::BLE => write!(f, "BLE"),
         }
     }
 }
 
 trait PeripheralDiscovery {
-    fn new(my_device: DeviceInfo,
+    fn new(my_device: Device,
            communication_receiver: Receiver<ThreadCommunication>,
-           device_list: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+           device_list: Arc<RwLock<HashMap<String, Device>>>,
            callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<Self, Box<dyn Error>> where Self : Sized;
     fn start_loop(&mut self) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Discovery {
-    pub my_device: DeviceInfo,
-    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    pub my_device: Device,
+    discovered_devices: Arc<RwLock<HashMap<String, Device>>>,
     sender: Sender<ThreadCommunication>
 }
 
 pub trait DiscoveryDelegate: Send + Sync + Debug {
-    fn device_added(&self, value: DeviceInfo);
+    fn device_added(&self, value: Device);
     fn device_removed(&self, device_id: String);
 }
 
 impl Discovery {
-    pub fn new(my_device: DeviceInfo, method: DiscoveryMethod, delegate: Option<Box<dyn DiscoveryDelegate>>) -> Result<Discovery, DiscoverySetupError> {
+    pub fn new(my_device: Device, method: DiscoveryMethod, delegate: Option<Box<dyn DiscoveryDelegate>>) -> Result<Discovery, DiscoverySetupError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
 
         let discovered_devices = Arc::new(RwLock::new(HashMap::new()));
@@ -155,7 +157,7 @@ impl Discovery {
         self.sender.send(ThreadCommunication::StopLookingForDevices).ok();
     }
 
-    pub fn get_devices(&self) -> Vec<DeviceInfo> {
+    pub fn get_devices(&self) -> Vec<Device> {
         if let Ok(discovered_devices) = self.discovered_devices.read() {
             return discovered_devices.values().cloned().collect();
         }

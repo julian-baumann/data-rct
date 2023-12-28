@@ -3,14 +3,14 @@ use std::error::Error;
 use std::sync::{Arc, Mutex, RwLock};
 use crossbeam_channel::{Receiver};
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-use crate::discovery::{DeviceInfo, DiscoveryDelegate, PeripheralDiscovery, ThreadCommunication};
+use crate::discovery::{Device, DiscoveryDelegate, PeripheralDiscovery, ThreadCommunication};
 use crate::PROTOCOL_VERSION;
 
 pub struct MdnsSdDiscovery {
     mdns_daemon: ServiceDaemon,
-    my_device: DeviceInfo,
+    my_device: Device,
     communication_receiver: Receiver<ThreadCommunication>,
-    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    discovered_devices: Arc<RwLock<HashMap<String, Device>>>,
     delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>
 }
 
@@ -53,9 +53,9 @@ impl MdnsSdDiscovery {
 }
 
 impl PeripheralDiscovery for MdnsSdDiscovery {
-    fn new(my_device: DeviceInfo,
+    fn new(my_device: Device,
            communication_receiver: Receiver<ThreadCommunication>,
-           discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+           discovered_devices: Arc<RwLock<HashMap<String, Device>>>,
            delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<MdnsSdDiscovery, Box<dyn Error>> {
         return Ok(MdnsSdDiscovery {
             mdns_daemon: ServiceDaemon::new()?,
@@ -112,7 +112,7 @@ impl PeripheralDiscovery for MdnsSdDiscovery {
                                         eprintln!("Error while trying to parse port from mDNS-SD discovery: {:?}", parse_error);
                                     }
                                     else if let Ok(port) = port {
-                                        let device = DeviceInfo {
+                                        let device = Device {
                                             id: id.to_string(),
                                             name: name.val_str().to_string(),
                                             port,

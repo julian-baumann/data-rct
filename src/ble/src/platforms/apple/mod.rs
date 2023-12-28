@@ -1,9 +1,5 @@
-use std::cell::OnceCell;
-use std::collections::HashMap;
-use std::sync::{Once, OnceLock};
-use lazy_static::lazy_static;
+use std::sync::{Mutex, OnceLock};
 use protocol::discovery::Device;
-use crate::CorePeripheral;
 use crate::platforms::apple::peripheral_manager::PeripheralManager;
 
 mod peripheral_manager;
@@ -12,7 +8,7 @@ mod constants;
 mod converter;
 mod events;
 
-static DISCOVERED_DEVICES: OnceLock<Vec<Device>> = OnceLock::new();
+static mut DISCOVERED_DEVICES: Mutex<Vec<Device>> = Mutex::new(Vec::new());
 
 pub struct Discovery {
     peripheral_manager: PeripheralManager
@@ -43,8 +39,10 @@ impl Discovery {
     }
 
     pub fn get_devices(&self) -> Vec<Device> {
-        return DISCOVERED_DEVICES.get()
-            .expect("Failed to lock DISCOVERED_DEVICES")
-            .to_vec()
+        unsafe {
+            return DISCOVERED_DEVICES.lock()
+                .expect("Failed to lock DISCOVERED_DEVICES")
+                .to_vec()
+        }
     }
 }

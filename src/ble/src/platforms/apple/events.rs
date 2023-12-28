@@ -6,7 +6,7 @@ use crate::platforms::apple::constants::POWERED_ON_IVAR;
 use crate::platforms::apple::converter::IntoBool;
 use crate::platforms::apple::ffi::{CBATTError, CBManagerState};
 use protocol::prost::Message;
-use crate::platforms::apple::{DEVICES, DISCOVERED_DEVICES};
+use crate::platforms::apple::{DISCOVERED_DEVICES};
 
 pub extern "C" fn peripheral_manager_did_update_state(
     delegate: &mut Object,
@@ -101,10 +101,10 @@ pub extern "C" fn peripheral_manager_did_receive_write_requests(
             let value = (*value).bytes();
 
             let device = Device::decode_length_delimited(value);
-            
+
             if let Ok(device) = device {
                 DISCOVERED_DEVICES
-                    .get()
+                    .lock()
                     .expect("Failed to unwrap DISCOVERED_DEVICES")
                     .push(device);
             }

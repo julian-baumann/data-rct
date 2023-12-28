@@ -5,48 +5,11 @@ use std::io::ErrorKind;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use crossbeam_channel::{Receiver};
-use crate::discovery::{DeviceInfo, DiscoveryDelegate, ThreadCommunication};
+use protocol::discovery::Device;
+use crate::discovery::{DiscoveryDelegate, ThreadCommunication};
 use crate::transform::{ByteConvertable, get_utf8_message_part};
 
 const DISCOVERY_PORTS: [u16; 4] = [42400, 42410, 42420, 42430];
-
-impl ByteConvertable for DeviceInfo {
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut result: Vec<u8> = Vec::new();
-        result.append(&mut self.id.as_bytes().to_vec());
-        result.push(0u8);
-        result.append(&mut self.name.as_bytes().to_vec());
-        result.push(0u8);
-        result.append(&mut self.port.to_string().as_bytes().to_vec());
-        result.push(0u8);
-        result.append(&mut self.device_type.as_bytes().to_vec());
-        result.push(0u8);
-
-        return result;
-    }
-
-    fn from_bytes(message: &mut Vec<u8>, ip_address: String) -> Option<DeviceInfo> {
-        let id = get_utf8_message_part(message)?;
-        let name = get_utf8_message_part(message)?;
-        let port = get_utf8_message_part(message)?.parse::<u16>();
-        let device_type = get_utf8_message_part(message)?;
-
-        return match port {
-            Ok(port) => {
-                Some(DeviceInfo {
-                    id,
-                    name,
-                    port,
-                    device_type,
-                    ip_address
-                })
-            }
-            Err(_) => {
-                None
-            }
-        }
-    }
-}
 
 #[derive(Clone)]
 enum MessageType {
@@ -58,17 +21,17 @@ enum MessageType {
 
 pub struct UdpDiscovery<> {
     socket: UdpSocket,
-    my_device: DeviceInfo,
+    my_device: Device,
     communication_receiver: Receiver<ThreadCommunication>,
     advertise_my_device: bool,
-    discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+    discovered_devices: Arc<RwLock<HashMap<String, Device>>>,
     callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>
 }
 
 impl UdpDiscovery {
-    pub fn new(my_device: DeviceInfo,
+    pub fn new(my_device: Device,
                communication_receiver: Receiver<ThreadCommunication>,
-               discovered_devices: Arc<RwLock<HashMap<String, DeviceInfo>>>,
+               discovered_devices: Arc<RwLock<HashMap<String, Device>>>,
                callback: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Result<UdpDiscovery, Box<dyn Error>> {
         return Ok(UdpDiscovery {
             socket: UdpDiscovery::open_udp_socket()?,
@@ -228,7 +191,7 @@ impl UdpDiscovery {
                     }
                 },
                 MessageType::DeviceInfo => {
-                    let device = DeviceInfo::from_bytes(message, sender_ip.ip().to_string())?;
+                    let device = Device::from_bytes(message, sender_ip.ip().to_string())?;
 
                     let mut is_new_device = false;
 
