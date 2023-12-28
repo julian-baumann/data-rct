@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package DataRCT.discovery;
+
+message Device {
+    string id = 1;
+    string name = 2;
+    DeviceType device_type = 3;
+//    TcpConnectionInfo tcp_connection_info = 4;
+    int32 protocol_version = 5;
+
+    enum DeviceType {
+        UNKNOWN = 0;
+        MOBILE = 1;
+        TABLET = 2;
+        DESKTOP = 3;
+        TV = 4;
+        CAR = 5;
+        WATCH = 6;
+        EMBEDDED = 7;
+    }
+}
+
+message TcpConnectionInfo {
+    string hostname = 1;
+    uint32 port = 2;
+}

@@ -1,7 +1,7 @@
 namespace DataRCT {
 };
 
-dictionary DeviceInfo {
+dictionary Device {
     string id;
     string name;
     u16 port;

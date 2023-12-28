@@ -8,30 +8,10 @@ use std::fmt::Debug;
 use std::sync::{Arc, Mutex, RwLock};
 use crossbeam_channel::{Receiver, Sender};
 use thiserror::Error;
+use protocol::discovery::Device;
 use crate::discovery::mdns_sd::MdnsSdDiscovery;
 use crate::discovery::udp::UdpDiscovery;
 use crate::get_local_ip;
-
-#[derive(Clone, PartialEq)]
-pub struct DeviceInfo {
-    pub id: String,
-    pub name: String,
-    pub port: u16,
-    pub device_type: String,
-    pub ip_address: String
-}
-
-impl DeviceInfo {
-    pub fn new(id: String, name: String, device_type: String) -> Self {
-        Self {
-            id,
-            name,
-            device_type,
-            port: 0,
-            ip_address: get_local_ip()
-        }
-    }
-}
 
 #[derive(PartialEq)]
 pub enum ThreadCommunication {
@@ -43,7 +23,7 @@ pub enum ThreadCommunication {
 }
 
 pub enum DiscoveryCommunication {
-    DeviceDiscovered(DeviceInfo),
+    DeviceDiscovered(Device),
     RemoveDevice(String)
 }
 

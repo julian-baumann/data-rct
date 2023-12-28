@@ -17,3 +17,4 @@ downcast-rs = "1.2.0"
 anyhow = "1.0"
 thiserror = "1.0"
 local-ip-address = "0.5.4"
+protocol = { path = "../protocol" }

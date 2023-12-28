@@ -1,0 +1,6 @@
+pub const PERIPHERAL_MANAGER_DELEGATE_CLASS_NAME: &str = "PeripheralManagerDelegate";
+pub const PERIPHERAL_MANAGER_IVAR: &str = "peripheralManager";
+pub const POWERED_ON_IVAR: &str = "poweredOn";
+
+pub const DISCOVERY_SERVICE_UUID: &str = "68D60EB2-8AAA-4D72-8851-BD6D64E169B7";
+pub const DISCOVERY_CHARACTERISTIC_UUID: &str = "0BEBF3FE-9A5E-4ED1-8157-76281B3F0DA5";

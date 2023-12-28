@@ -5,6 +5,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src/data_rct/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/data_rct/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/src/data_rct_ffi/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/ble/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/protocol/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/src/data_rct_ffi/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
