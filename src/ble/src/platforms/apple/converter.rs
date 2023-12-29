@@ -10,7 +10,8 @@ impl IntoBool for BOOL {
     fn into_bool(self) -> bool {
         match self {
             YES => true,
-            NO => false
+            NO => false,
+            _ => panic!("Unknown Objective-C BOOL value.")
         }
     }
 }

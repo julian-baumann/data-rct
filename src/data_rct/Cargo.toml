@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+protocol = { path = "../protocol" }
+ble = { path = "../ble" }
 crossbeam-channel = "0.5"
 mdns-sd = "0.10.1"
 x25519-dalek = "2.0.0-rc.3"
@@ -17,4 +19,3 @@ downcast-rs = "1.2.0"
 anyhow = "1.0"
 thiserror = "1.0"
 local-ip-address = "0.5.4"
-protocol = { path = "../protocol" }

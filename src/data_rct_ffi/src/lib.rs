@@ -1,14 +1,14 @@
 uniffi::include_scaffolding!("data_rct");
 
 use std::io;
-use std::io::Read;
 use std::sync::Arc;
 pub use data_rct::Device;
-pub use data_rct::discovery::{Discovery, DiscoveryMethod, DiscoverySetupError, DiscoveryDelegate};
+pub use data_rct::nearby::NearbyServer;
 pub use data_rct::encryption::{EncryptedStream};
 pub use data_rct::transmission::{Transmission, TransmissionSetupError, TransmissionRequest};
 pub use data_rct::stream::{ConnectErrors, IncomingErrors};
-
+pub use data_rct::DiscoveryDelegate;
+pub use data_rct::discovery::{Discovery, DiscoverySetupError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExternalIOError {
@@ -22,12 +22,12 @@ impl From<io::Error> for ExternalIOError {
     }
 }
 
-#[no_mangle]
-pub unsafe extern fn read_unsafe(encrypted_stream: *mut EncryptedStream, buffer: *mut [u8]) -> u64 {
-    let result = (*encrypted_stream).read(&mut (*buffer));
-
-    return 0;
-}
+// #[no_mangle]
+// pub unsafe extern fn read_unsafe(encrypted_stream: *mut EncryptedStream, buffer: *mut [u8]) -> u64 {
+//     let result = (*encrypted_stream).read(&mut (*buffer));
+//
+//     return 0;
+// }
 
 trait UniffiReadWrite {
     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
@@ -47,11 +47,11 @@ impl UniffiReadWrite for EncryptedStream {
 }
 
 trait TransmissionFfi {
-    fn connect_to_device(&self, recipient: DeviceInfo) -> Result<Arc<EncryptedStream>, ConnectErrors>;
+    fn connect_to_device(&self, recipient: Device) -> Result<Arc<EncryptedStream>, ConnectErrors>;
 }
 
 impl TransmissionFfi for Transmission {
-    fn connect_to_device(&self, recipient: DeviceInfo) -> Result<Arc<EncryptedStream>, ConnectErrors> {
+    fn connect_to_device(&self, recipient: Device) -> Result<Arc<EncryptedStream>, ConnectErrors> {
         return match self.open(&recipient) {
             Ok(result) => Ok(Arc::new(result)),
             Err(error) => Err(error)

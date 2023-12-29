@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_DataRCT_e3f7_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_DataRCT_313f_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_DataRCT_e3f7_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_DataRCT_313f_rustbuffer_free(self, $0) }
     }
 }
 
@@ -280,41 +280,36 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
 
 // Public interface members begin here.
 
-private struct FfiConverterUInt8: FfiConverterPrimitive {
-    typealias FfiType = UInt8
-    typealias SwiftType = UInt8
+private struct FfiConverterInt32: FfiConverterPrimitive {
+    typealias FfiType = Int32
+    typealias SwiftType = Int32
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt8 {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int32 {
         return try lift(readInt(&buf))
     }
 
-    public static func write(_ value: UInt8, into buf: inout [UInt8]) {
+    public static func write(_ value: Int32, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
 
-private struct FfiConverterUInt16: FfiConverterPrimitive {
-    typealias FfiType = UInt16
-    typealias SwiftType = UInt16
+private struct FfiConverterBool: FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
         return try lift(readInt(&buf))
     }
 
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(value))
-    }
-}
-
-private struct FfiConverterUInt64: FfiConverterPrimitive {
-    typealias FfiType = UInt64
-    typealias SwiftType = UInt64
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
-        return try lift(readInt(&buf))
-    }
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
@@ -358,11 +353,10 @@ private struct FfiConverterString: FfiConverter {
 }
 
 public protocol DiscoveryProtocol {
-    func advertise()
-    func stopAdvertising()
-    func startSearch()
-    func stopSearch()
-    func getDevices() -> [DeviceInfo]
+    func isAvailable() -> Bool
+    func start()
+    func stop()
+    func getDevices() -> [Device]
 }
 
 public class Discovery: DiscoveryProtocol {
@@ -375,55 +369,48 @@ public class Discovery: DiscoveryProtocol {
         self.pointer = pointer
     }
 
-    public convenience init(myDevice: DeviceInfo, method: DiscoveryMethod, delegate: DiscoveryDelegate?) throws {
+    public convenience init(delegate: DiscoveryDelegate?) throws {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeDiscoverySetupError.self) {
-                DataRCT_e3f7_Discovery_new(
-                    FfiConverterTypeDeviceInfo.lower(myDevice),
-                    FfiConverterTypeDiscoveryMethod.lower(method),
+                DataRCT_313f_Discovery_new(
                     FfiConverterOptionCallbackInterfaceDiscoveryDelegate.lower(delegate), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_e3f7_Discovery_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_313f_Discovery_object_free(pointer, $0) }
     }
 
-    public func advertise() {
-        try!
-            rustCall {
-                DataRCT_e3f7_Discovery_advertise(self.pointer, $0)
-            }
-    }
-
-    public func stopAdvertising() {
-        try!
-            rustCall {
-                DataRCT_e3f7_Discovery_stop_advertising(self.pointer, $0)
-            }
-    }
-
-    public func startSearch() {
-        try!
-            rustCall {
-                DataRCT_e3f7_Discovery_start_search(self.pointer, $0)
-            }
-    }
-
-    public func stopSearch() {
-        try!
-            rustCall {
-                DataRCT_e3f7_Discovery_stop_search(self.pointer, $0)
-            }
-    }
-
-    public func getDevices() -> [DeviceInfo] {
-        return try! FfiConverterSequenceTypeDeviceInfo.lift(
+    public func isAvailable() -> Bool {
+        return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    DataRCT_e3f7_Discovery_get_devices(self.pointer, $0)
+                    DataRCT_313f_Discovery_is_available(self.pointer, $0)
+                }
+        )
+    }
+
+    public func start() {
+        try!
+            rustCall {
+                DataRCT_313f_Discovery_start(self.pointer, $0)
+            }
+    }
+
+    public func stop() {
+        try!
+            rustCall {
+                DataRCT_313f_Discovery_stop(self.pointer, $0)
+            }
+    }
+
+    public func getDevices() -> [Device] {
+        return try! FfiConverterSequenceTypeDevice.lift(
+            try!
+                rustCall {
+                    DataRCT_313f_Discovery_get_devices(self.pointer, $0)
                 }
         )
     }
@@ -459,12 +446,12 @@ public struct FfiConverterTypeDiscovery: FfiConverter {
     }
 }
 
-public protocol EncryptedStreamProtocol {
-    func writeBytes(buffer: [UInt8]) throws -> UInt64
-    func flushBytes() throws
+public protocol NearbyServerProtocol {
+    func advertise()
+    func stopAdvertising()
 }
 
-public class EncryptedStream: EncryptedStreamProtocol {
+public class NearbyServer: NearbyServerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -474,218 +461,40 @@ public class EncryptedStream: EncryptedStreamProtocol {
         self.pointer = pointer
     }
 
-    deinit {
-        try! rustCall { ffi_DataRCT_e3f7_EncryptedStream_object_free(pointer, $0) }
-    }
-
-    public func writeBytes(buffer: [UInt8]) throws -> UInt64 {
-        return try FfiConverterUInt64.lift(
-            try
-                rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                    DataRCT_e3f7_EncryptedStream_write_bytes(self.pointer,
-                                                             FfiConverterSequenceUInt8.lower(buffer), $0)
-                }
-        )
-    }
-
-    public func flushBytes() throws {
-        try
-            rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                DataRCT_e3f7_EncryptedStream_flush_bytes(self.pointer, $0)
-            }
-    }
-}
-
-public struct FfiConverterTypeEncryptedStream: FfiConverter {
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = EncryptedStream
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EncryptedStream {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if ptr == nil {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: EncryptedStream, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> EncryptedStream {
-        return EncryptedStream(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: EncryptedStream) -> UnsafeMutableRawPointer {
-        return value.pointer
-    }
-}
-
-public protocol TransmissionProtocol {
-    func getIncoming() -> TransmissionRequest?
-    func connectToDevice(recipient: DeviceInfo) throws -> EncryptedStream
-    func getPort() -> UInt16
-}
-
-public class Transmission: TransmissionProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-
-    public convenience init(myDevice: DeviceInfo) throws {
+    public convenience init(myDevice: Device) throws {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeTransmissionSetupError.self) {
-                DataRCT_e3f7_Transmission_new(
-                    FfiConverterTypeDeviceInfo.lower(myDevice), $0
+                DataRCT_313f_NearbyServer_new(
+                    FfiConverterTypeDevice.lower(myDevice), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_e3f7_Transmission_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_313f_NearbyServer_object_free(pointer, $0) }
     }
 
-    public func getIncoming() -> TransmissionRequest? {
-        return try! FfiConverterOptionTypeTransmissionRequest.lift(
-            try!
-                rustCall {
-                    DataRCT_e3f7_Transmission_get_incoming(self.pointer, $0)
-                }
-        )
+    public func advertise() {
+        try!
+            rustCall {
+                DataRCT_313f_NearbyServer_advertise(self.pointer, $0)
+            }
     }
 
-    public func connectToDevice(recipient: DeviceInfo) throws -> EncryptedStream {
-        return try FfiConverterTypeEncryptedStream.lift(
-            try
-                rustCallWithError(FfiConverterTypeConnectErrors.self) {
-                    DataRCT_e3f7_Transmission_connect_to_device(self.pointer,
-                                                                FfiConverterTypeDeviceInfo.lower(recipient), $0)
-                }
-        )
-    }
-
-    public func getPort() -> UInt16 {
-        return try! FfiConverterUInt16.lift(
-            try!
-                rustCall {
-                    DataRCT_e3f7_Transmission_get_port(self.pointer, $0)
-                }
-        )
-    }
-}
-
-public struct FfiConverterTypeTransmission: FfiConverter {
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = Transmission
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Transmission {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if ptr == nil {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: Transmission, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Transmission {
-        return Transmission(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: Transmission) -> UnsafeMutableRawPointer {
-        return value.pointer
-    }
-}
-
-public protocol TransmissionRequestProtocol {
-    func getSessionUuid() -> String
-    func getSenderId() -> String
-    func getSenderName() -> String
-    func accept() throws -> EncryptedStream
-    func deny() throws
-}
-
-public class TransmissionRequest: TransmissionRequestProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-
-    deinit {
-        try! rustCall { ffi_DataRCT_e3f7_TransmissionRequest_object_free(pointer, $0) }
-    }
-
-    public func getSessionUuid() -> String {
-        return try! FfiConverterString.lift(
-            try!
-                rustCall {
-                    DataRCT_e3f7_TransmissionRequest_get_session_uuid(self.pointer, $0)
-                }
-        )
-    }
-
-    public func getSenderId() -> String {
-        return try! FfiConverterString.lift(
-            try!
-                rustCall {
-                    DataRCT_e3f7_TransmissionRequest_get_sender_id(self.pointer, $0)
-                }
-        )
-    }
-
-    public func getSenderName() -> String {
-        return try! FfiConverterString.lift(
-            try!
-                rustCall {
-                    DataRCT_e3f7_TransmissionRequest_get_sender_name(self.pointer, $0)
-                }
-        )
-    }
-
-    public func accept() throws -> EncryptedStream {
-        return try FfiConverterTypeEncryptedStream.lift(
-            try
-                rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                    DataRCT_e3f7_TransmissionRequest_accept(self.pointer, $0)
-                }
-        )
-    }
-
-    public func deny() throws {
-        try
-            rustCallWithError(FfiConverterTypeExternalIoError.self) {
-                DataRCT_e3f7_TransmissionRequest_deny(self.pointer, $0)
+    public func stopAdvertising() {
+        try!
+            rustCall {
+                DataRCT_313f_NearbyServer_stop_advertising(self.pointer, $0)
             }
     }
 }
 
-public struct FfiConverterTypeTransmissionRequest: FfiConverter {
+public struct FfiConverterTypeNearbyServer: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = TransmissionRequest
+    typealias SwiftType = NearbyServer
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TransmissionRequest {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NearbyServer {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -696,54 +505,44 @@ public struct FfiConverterTypeTransmissionRequest: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: TransmissionRequest, into buf: inout [UInt8]) {
+    public static func write(_ value: NearbyServer, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> TransmissionRequest {
-        return TransmissionRequest(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NearbyServer {
+        return NearbyServer(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: TransmissionRequest) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: NearbyServer) -> UnsafeMutableRawPointer {
         return value.pointer
     }
 }
 
-public struct DeviceInfo {
+public struct Device {
     public var id: String
     public var name: String
-    public var port: UInt16
-    public var deviceType: String
-    public var ipAddress: String
+    public var deviceType: Int32
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String, port: UInt16, deviceType: String, ipAddress: String) {
+    public init(id: String, name: String, deviceType: Int32) {
         self.id = id
         self.name = name
-        self.port = port
         self.deviceType = deviceType
-        self.ipAddress = ipAddress
     }
 }
 
-extension DeviceInfo: Equatable, Hashable {
-    public static func == (lhs: DeviceInfo, rhs: DeviceInfo) -> Bool {
+extension Device: Equatable, Hashable {
+    public static func == (lhs: Device, rhs: Device) -> Bool {
         if lhs.id != rhs.id {
             return false
         }
         if lhs.name != rhs.name {
             return false
         }
-        if lhs.port != rhs.port {
-            return false
-        }
         if lhs.deviceType != rhs.deviceType {
-            return false
-        }
-        if lhs.ipAddress != rhs.ipAddress {
             return false
         }
         return true
@@ -752,179 +551,33 @@ extension DeviceInfo: Equatable, Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
-        hasher.combine(port)
         hasher.combine(deviceType)
-        hasher.combine(ipAddress)
     }
 }
 
-public struct FfiConverterTypeDeviceInfo: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceInfo {
-        return try DeviceInfo(
+public struct FfiConverterTypeDevice: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Device {
+        return try Device(
             id: FfiConverterString.read(from: &buf),
             name: FfiConverterString.read(from: &buf),
-            port: FfiConverterUInt16.read(from: &buf),
-            deviceType: FfiConverterString.read(from: &buf),
-            ipAddress: FfiConverterString.read(from: &buf)
+            deviceType: FfiConverterInt32.read(from: &buf)
         )
     }
 
-    public static func write(_ value: DeviceInfo, into buf: inout [UInt8]) {
+    public static func write(_ value: Device, into buf: inout [UInt8]) {
         FfiConverterString.write(value.id, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
-        FfiConverterUInt16.write(value.port, into: &buf)
-        FfiConverterString.write(value.deviceType, into: &buf)
-        FfiConverterString.write(value.ipAddress, into: &buf)
+        FfiConverterInt32.write(value.deviceType, into: &buf)
     }
 }
 
-public func FfiConverterTypeDeviceInfo_lift(_ buf: RustBuffer) throws -> DeviceInfo {
-    return try FfiConverterTypeDeviceInfo.lift(buf)
+public func FfiConverterTypeDevice_lift(_ buf: RustBuffer) throws -> Device {
+    return try FfiConverterTypeDevice.lift(buf)
 }
 
-public func FfiConverterTypeDeviceInfo_lower(_ value: DeviceInfo) -> RustBuffer {
-    return FfiConverterTypeDeviceInfo.lower(value)
+public func FfiConverterTypeDevice_lower(_ value: Device) -> RustBuffer {
+    return FfiConverterTypeDevice.lower(value)
 }
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum DiscoveryMethod {
-    case both
-    case mdns
-    case udp
-}
-
-public struct FfiConverterTypeDiscoveryMethod: FfiConverterRustBuffer {
-    typealias SwiftType = DiscoveryMethod
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DiscoveryMethod {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        case 1: return .both
-
-        case 2: return .mdns
-
-        case 3: return .udp
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: DiscoveryMethod, into buf: inout [UInt8]) {
-        switch value {
-        case .both:
-            writeInt(&buf, Int32(1))
-
-        case .mdns:
-            writeInt(&buf, Int32(2))
-
-        case .udp:
-            writeInt(&buf, Int32(3))
-        }
-    }
-}
-
-public func FfiConverterTypeDiscoveryMethod_lift(_ buf: RustBuffer) throws -> DiscoveryMethod {
-    return try FfiConverterTypeDiscoveryMethod.lift(buf)
-}
-
-public func FfiConverterTypeDiscoveryMethod_lower(_ value: DiscoveryMethod) -> RustBuffer {
-    return FfiConverterTypeDiscoveryMethod.lower(value)
-}
-
-extension DiscoveryMethod: Equatable, Hashable {}
-
-public enum ConnectErrors {
-    // Simple error enums only carry a message
-    case UnknownWriteError(message: String)
-
-    // Simple error enums only carry a message
-    case UnknownReadError(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidSocketAddress(message: String)
-
-    // Simple error enums only carry a message
-    case CouldNotOpenSocket(message: String)
-
-    // Simple error enums only carry a message
-    case EncryptionError(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidForeignPublicKey(message: String)
-
-    // Simple error enums only carry a message
-    case Rejected(message: String)
-}
-
-public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
-    typealias SwiftType = ConnectErrors
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectErrors {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        case 1: return .UnknownWriteError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 2: return .UnknownReadError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 3: return .InvalidSocketAddress(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 4: return .CouldNotOpenSocket(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 5: return .EncryptionError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 6: return .InvalidForeignPublicKey(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 7: return .Rejected(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: ConnectErrors, into buf: inout [UInt8]) {
-        switch value {
-        case let .UnknownWriteError(message):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(message, into: &buf)
-        case let .UnknownReadError(message):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidSocketAddress(message):
-            writeInt(&buf, Int32(3))
-            FfiConverterString.write(message, into: &buf)
-        case let .CouldNotOpenSocket(message):
-            writeInt(&buf, Int32(4))
-            FfiConverterString.write(message, into: &buf)
-        case let .EncryptionError(message):
-            writeInt(&buf, Int32(5))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidForeignPublicKey(message):
-            writeInt(&buf, Int32(6))
-            FfiConverterString.write(message, into: &buf)
-        case let .Rejected(message):
-            writeInt(&buf, Int32(7))
-            FfiConverterString.write(message, into: &buf)
-        }
-    }
-}
-
-extension ConnectErrors: Equatable, Hashable {}
-
-extension ConnectErrors: Error {}
 
 public enum DiscoverySetupError {
     // Simple error enums only carry a message
@@ -967,179 +620,6 @@ public struct FfiConverterTypeDiscoverySetupError: FfiConverterRustBuffer {
 extension DiscoverySetupError: Equatable, Hashable {}
 
 extension DiscoverySetupError: Error {}
-
-public enum ExternalIoError {
-    case IoError(reason: String)
-}
-
-public struct FfiConverterTypeExternalIoError: FfiConverterRustBuffer {
-    typealias SwiftType = ExternalIoError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ExternalIoError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        case 1: return .IoError(
-                reason: try FfiConverterString.read(from: &buf)
-            )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: ExternalIoError, into buf: inout [UInt8]) {
-        switch value {
-        case let .IoError(reason):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(reason, into: &buf)
-        }
-    }
-}
-
-extension ExternalIoError: Equatable, Hashable {}
-
-extension ExternalIoError: Error {}
-
-public enum IncomingErrors {
-    // Simple error enums only carry a message
-    case UnknownReadError(message: String)
-
-    // Simple error enums only carry a message
-    case StringConversionError(message: String)
-
-    // Simple error enums only carry a message
-    case MissingProtocolVersion(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidVersion(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidUuid(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidForeignPublicKey(message: String)
-
-    // Simple error enums only carry a message
-    case ErrorSendingPublicKey(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidNonce(message: String)
-
-    // Simple error enums only carry a message
-    case EncryptionError(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidSenderId(message: String)
-
-    // Simple error enums only carry a message
-    case InvalidSenderName(message: String)
-
-    // Simple error enums only carry a message
-    case Rejected(message: String)
-}
-
-public struct FfiConverterTypeIncomingErrors: FfiConverterRustBuffer {
-    typealias SwiftType = IncomingErrors
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IncomingErrors {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        case 1: return .UnknownReadError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 2: return .StringConversionError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 3: return .MissingProtocolVersion(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 4: return .InvalidVersion(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 5: return .InvalidUuid(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 6: return .InvalidForeignPublicKey(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 7: return .ErrorSendingPublicKey(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 8: return .InvalidNonce(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 9: return .EncryptionError(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 10: return .InvalidSenderId(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 11: return .InvalidSenderName(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        case 12: return .Rejected(
-                message: try FfiConverterString.read(from: &buf)
-            )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: IncomingErrors, into buf: inout [UInt8]) {
-        switch value {
-        case let .UnknownReadError(message):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(message, into: &buf)
-        case let .StringConversionError(message):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(message, into: &buf)
-        case let .MissingProtocolVersion(message):
-            writeInt(&buf, Int32(3))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidVersion(message):
-            writeInt(&buf, Int32(4))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidUuid(message):
-            writeInt(&buf, Int32(5))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidForeignPublicKey(message):
-            writeInt(&buf, Int32(6))
-            FfiConverterString.write(message, into: &buf)
-        case let .ErrorSendingPublicKey(message):
-            writeInt(&buf, Int32(7))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidNonce(message):
-            writeInt(&buf, Int32(8))
-            FfiConverterString.write(message, into: &buf)
-        case let .EncryptionError(message):
-            writeInt(&buf, Int32(9))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidSenderId(message):
-            writeInt(&buf, Int32(10))
-            FfiConverterString.write(message, into: &buf)
-        case let .InvalidSenderName(message):
-            writeInt(&buf, Int32(11))
-            FfiConverterString.write(message, into: &buf)
-        case let .Rejected(message):
-            writeInt(&buf, Int32(12))
-            FfiConverterString.write(message, into: &buf)
-        }
-    }
-}
-
-extension IncomingErrors: Equatable, Hashable {}
-
-extension IncomingErrors: Error {}
 
 public enum TransmissionSetupError {
     // Simple error enums only carry a message
@@ -1237,7 +717,7 @@ private let IDX_CALLBACK_FREE: Int32 = 0
 // Declaration and FfiConverters for DiscoveryDelegate Callback Interface
 
 public protocol DiscoveryDelegate: AnyObject {
-    func deviceAdded(value: DeviceInfo)
+    func deviceAdded(value: Device)
     func deviceRemoved(deviceId: String)
 }
 
@@ -1249,7 +729,7 @@ private let foreignCallbackCallbackInterfaceDiscoveryDelegate: ForeignCallback =
 
             var reader = createReader(data: Data(rustBuffer: args))
             swiftCallbackInterface.deviceAdded(
-                value: try FfiConverterTypeDeviceInfo.read(from: &reader)
+                value: try FfiConverterTypeDevice.read(from: &reader)
             )
             return RustBuffer()
             // TODO: catch errors and report them back to Rust.
@@ -1318,7 +798,7 @@ private enum FfiConverterCallbackInterfaceDiscoveryDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_DataRCT_e3f7_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
+            ffi_DataRCT_313f_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
         }
     }
 
@@ -1366,27 +846,6 @@ extension FfiConverterCallbackInterfaceDiscoveryDelegate: FfiConverter {
     }
 }
 
-private struct FfiConverterOptionTypeTransmissionRequest: FfiConverterRustBuffer {
-    typealias SwiftType = TransmissionRequest?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeTransmissionRequest.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeTransmissionRequest.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 private struct FfiConverterOptionCallbackInterfaceDiscoveryDelegate: FfiConverterRustBuffer {
     typealias SwiftType = DiscoveryDelegate?
 
@@ -1408,45 +867,23 @@ private struct FfiConverterOptionCallbackInterfaceDiscoveryDelegate: FfiConverte
     }
 }
 
-private struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
-    typealias SwiftType = [UInt8]
+private struct FfiConverterSequenceTypeDevice: FfiConverterRustBuffer {
+    typealias SwiftType = [Device]
 
-    public static func write(_ value: [UInt8], into buf: inout [UInt8]) {
+    public static func write(_ value: [Device], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterUInt8.write(item, into: &buf)
+            FfiConverterTypeDevice.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt8] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Device] {
         let len: Int32 = try readInt(&buf)
-        var seq = [UInt8]()
+        var seq = [Device]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterUInt8.read(from: &buf))
-        }
-        return seq
-    }
-}
-
-private struct FfiConverterSequenceTypeDeviceInfo: FfiConverterRustBuffer {
-    typealias SwiftType = [DeviceInfo]
-
-    public static func write(_ value: [DeviceInfo], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterTypeDeviceInfo.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DeviceInfo] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [DeviceInfo]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeDeviceInfo.read(from: &buf))
+            seq.append(try FfiConverterTypeDevice.read(from: &buf))
         }
         return seq
     }

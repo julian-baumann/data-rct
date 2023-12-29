@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
 use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType};
-use btleplug::api::bleuuid::BleUuid;
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 use tokio::runtime::Runtime;
@@ -9,13 +11,13 @@ use protocol::discovery::Device;
 use protocol::prost::Message;
 use crate::{DISCOVERY_CHARACTERISTIC_UUID, DISCOVERY_SERVICE_UUID};
 
-pub struct Advertisement {
+pub struct BleAdvertisement {
     async_runtime: Runtime,
     central_adapter: Adapter,
     my_device: Vec<u8>
 }
 
-impl Advertisement {
+impl BleAdvertisement {
     pub fn new(my_device: &Device) -> Self {
         let async_runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -43,13 +45,18 @@ impl Advertisement {
         self.my_device = device.encode_length_delimited_to_vec();
     }
 
+    pub fn stop_advertising(&self) {
+        let _ = self.central_adapter.stop_scan();
+    }
+
     pub fn start_advertising(&self) {
+        println!("starting advertisement");
+
         let central = self.central_adapter.clone();
         let device_data = self.my_device.clone();
 
-        self.async_runtime.spawn(async move {
-            let mut events = central
-                .events()
+        let join_handle = self.async_runtime.spawn(async move {
+            let mut events = central.events()
                 .await
                 .expect("Failed to get events.");
 
@@ -59,10 +66,11 @@ impl Advertisement {
                 ]
             };
 
-            central
-                .start_scan(scan_filter)
+            central.start_scan(scan_filter)
                 .await
                 .expect("Failed to start scanning.");
+
+            println!("Started scan");
 
             while let Some(event) = events.next().await {
                 match event {
@@ -78,37 +86,33 @@ impl Advertisement {
                         println!("DeviceConnected: {:?}", id);
                         let peripheral = central.peripheral(&id).await;
 
-                        if let Ok(peripheral) = peripheral {
-                            let result = peripheral.discover_services().await;
+                        let Ok(peripheral) = peripheral else {
+                            return;
+                        };
 
-                            if let Ok(()) = result {
-                                let characteristics = peripheral.characteristics();
+                        let Ok(()) = peripheral.discover_services().await else {
+                            return;
+                        };
 
-                                let discovery_characteristic = characteristics
-                                    .iter()
-                                    .find(|c| c.uuid == Uuid::parse_str(DISCOVERY_CHARACTERISTIC_UUID).unwrap());
+                        let characteristics = peripheral.characteristics();
 
-                                if let Some(discovery_characteristic) = discovery_characteristic {
-                                    let _ = peripheral
-                                        .write(&discovery_characteristic, &device_data, WriteType::WithoutResponse)
-                                        .await;
-                                }
-                            }
+                        let discovery_characteristic = characteristics
+                            .iter()
+                            .find(|c| c.uuid == Uuid::parse_str(DISCOVERY_CHARACTERISTIC_UUID).unwrap());
+
+                        if let Some(discovery_characteristic) = discovery_characteristic {
+                            let _ = peripheral
+                                .write(&discovery_characteristic, &device_data, WriteType::WithoutResponse)
+                                .await;
                         }
-                    }
-                    CentralEvent::DeviceDisconnected(id) => {
-                        println!("DeviceDisconnected: {:?}", id);
-                    }
-                    CentralEvent::ServiceDataAdvertisement { id, service_data } => {
-                        println!("ServiceDataAdvertisement: {:?}, {:?}", id, service_data);
-                    }
-                    CentralEvent::ServicesAdvertisement { id, services } => {
-                        let services: Vec<String> = services.into_iter().map(|s| s.to_short_string()).collect();
-                        println!("ServicesAdvertisement: {:?}, {:?}", id, services);
                     }
                     _ => {}
                 }
             }
         });
+
+        while !join_handle.is_finished() {
+            sleep(Duration::new(100, 0));
+        }
     }
 }

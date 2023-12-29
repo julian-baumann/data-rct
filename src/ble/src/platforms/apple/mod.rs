@@ -1,5 +1,6 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use protocol::discovery::Device;
+use protocol::DiscoveryDelegate;
 use crate::platforms::apple::peripheral_manager::PeripheralManager;
 
 mod peripheral_manager;
@@ -7,17 +8,25 @@ mod ffi;
 mod constants;
 mod converter;
 mod events;
+mod central_manager;
 
 static mut DISCOVERED_DEVICES: Mutex<Vec<Device>> = Mutex::new(Vec::new());
+static mut DISCOVERY_DELEGATE: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>> = None;
 
-pub struct Discovery {
+pub struct BleDiscovery {
     peripheral_manager: PeripheralManager
 }
 
-impl Discovery {
-    pub fn new() -> Self {
-        Discovery {
-            peripheral_manager: PeripheralManager::new(),
+impl BleDiscovery {
+    pub fn new(discovery_delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>) -> Self {
+        unsafe {
+            if let Some(discovery_delegate) = discovery_delegate {
+                DISCOVERY_DELEGATE.replace(discovery_delegate);
+            }
+        }
+
+        BleDiscovery {
+            peripheral_manager: PeripheralManager::new()
         }
     }
 

@@ -3,6 +3,25 @@ syntax = "proto3";
 package DataRCT.communication;
 import "discovery.proto";
 
+message MessageHeader {
+    int32 protocol_version = 1;
+    MessageTypes type = 2;
+
+    enum MessageTypes {
+        CONNECTION_UPDATE_REQUEST = 0;
+
+        KEY_EXCHANGE = 1;
+        KEY_EXCHANGE_RESPONSE = 2;
+
+        FILE_TRANSFER = 3;
+        CLIPBOARD_TRANSFER = 4;
+    }
+}
+
+message KeyExchange {
+    
+}
+
 message TransferRequest {
     discovery.Device device = 1;
     CommunicationIntents intent = 2;

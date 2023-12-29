@@ -14,7 +14,7 @@ use protocol::discovery::Device;
 use crate::encryption::{EncryptedStream, generate_iv};
 use crate::stream::{check_result, Stream, IncomingErrors, ConnectErrors, StreamRead, StreamWrite};
 
-mod tcp;
+pub mod tcp;
 
 const PUBLIC_KEY_SIZE: usize = 32;
 const UUID_LENGTH: usize = 16;
@@ -22,7 +22,7 @@ const NONCE_LENGTH: usize = 24;
 const ACCEPT_TRANSMISSION: u8 = 1;
 const DENY_TRANSMISSION: u8 = 0;
 
-trait DataTransmission {
+pub trait DataTransmission {
     fn new() -> Result<Self, Box<dyn Error>> where Self: Sized;
     fn accept(&self) -> Option<Box<dyn Stream>>;
 }
@@ -33,8 +33,7 @@ pub enum TransmissionMessageTunnel {
 
 pub struct TransmissionRequest {
     pub uuid: String,
-    pub sender_id: String,
-    pub sender_name: String,
+    pub sender: Device,
     pub data_stream: Arc<EncryptedStream>
 }
 
@@ -43,12 +42,8 @@ impl TransmissionRequest {
         return self.uuid.to_string();
     }
 
-    pub fn get_sender_id(&self) -> String {
-        return self.sender_id.to_string();
-    }
-
-    pub fn get_sender_name(&self) -> String {
-        return self.sender_name.to_string();
+    pub fn get_sender(&self) -> Device {
+        return self.sender.clone();
     }
 
     pub fn accept(&self) -> io::Result<Arc<EncryptedStream>> {
@@ -75,29 +70,25 @@ pub enum TransmissionSetupError {
 
 pub struct Transmission {
     pub device_info: Device,
-    tcp_transmission: TcpTransmissionListener
+    transmission: Box<dyn DataTransmission>
 }
 
 impl Transmission {
-    pub fn new(device_info: Device) -> Result<Self, TransmissionSetupError> {
+    pub fn new(device_info: &Device, transmission: Box<dyn DataTransmission>) -> Result<Self, TransmissionSetupError> {
         let tcp_transmission = match TcpTransmissionListener::new() {
             Ok(result) => result,
             Err(_) => return Err(TransmissionSetupError::UnableToStartTcpServer)
         };
 
-
-        let mut modified_device = device_info.clone();
-        modified_device.port = tcp_transmission.port;
-
         return Ok(Transmission {
-            device_info: modified_device,
-            tcp_transmission
+            device_info: device_info.clone(),
+            transmission
         });
     }
 
-    pub fn get_port(&self) -> u16 {
-        return self.tcp_transmission.port;
-    }
+    // pub fn get_connection_details(&self) -> u16 {
+    //     return self.transmission.get_connection_details();
+    // }
 
     fn encrypt_stream<'b>(&'b self, my_key: EphemeralSecret, foreign_key: [u8; 32], nonce: [u8; 24], stream: Box<dyn Stream>) -> Result<EncryptedStream, Box<dyn Error>> {
         let foreign_key = PublicKey::from(foreign_key);
@@ -123,7 +114,7 @@ impl Transmission {
     }
 
     pub fn get_incoming_with_errors(&self) -> Option<Result<TransmissionRequest, IncomingErrors>> {
-        if let Some(mut connection) = self.tcp_transmission.accept() {
+        if let Some(mut connection) = self.transmission.accept() {
             // == Version ==
             let protocol_version = connection.read_u8();
 
@@ -196,8 +187,8 @@ impl Transmission {
 
             return Some(Ok(TransmissionRequest {
                 uuid: uuid.to_string(),
-                sender_id,
-                sender_name,
+                // TODO: replace
+                sender: Device::default(),
                 data_stream: Arc::new(encrypted_stream)
             }));
         }
@@ -206,7 +197,8 @@ impl Transmission {
     }
 
     pub fn open(&self, recipient: &Device) -> Result<EncryptedStream, ConnectErrors> {
-        let socket_address = (recipient.ip_address.as_str(), recipient.port).to_socket_addrs();
+        // TODO: replace
+        let socket_address = ("", 1).to_socket_addrs();
 
         let mut socket_address = match socket_address {
             Ok(address) => address,

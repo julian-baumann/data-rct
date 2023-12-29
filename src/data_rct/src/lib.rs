@@ -5,6 +5,9 @@ pub mod discovery;
 pub mod transmission;
 pub mod encryption;
 pub mod stream;
+pub mod nearby;
+
+pub use protocol::DiscoveryDelegate;
 pub use protocol::discovery::{Device};
 pub use protocol::communication::{SharedFileInfo, ClipboardTransferIntent};
 use local_ip_address::local_ip;
