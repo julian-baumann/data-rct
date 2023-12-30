@@ -20,7 +20,6 @@ pub struct BleAdvertisement {
 impl BleAdvertisement {
     pub fn new(my_device: &Device) -> Self {
         let async_runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
             .build()
             .unwrap();
 
@@ -55,7 +54,7 @@ impl BleAdvertisement {
         let central = self.central_adapter.clone();
         let device_data = self.my_device.clone();
 
-        let join_handle = self.async_runtime.spawn(async move {
+        let test = self.async_runtime.block_on(async move {
             let mut events = central.events()
                 .await
                 .expect("Failed to get events.");
@@ -79,7 +78,7 @@ impl BleAdvertisement {
                         let peripheral = central.peripheral(&id).await;
 
                         if let Ok(peripheral) = peripheral {
-                            let _ = peripheral.connect();
+                            let _ = peripheral.connect().await;
                         }
                     }
                     CentralEvent::DeviceConnected(id) => {
@@ -105,14 +104,12 @@ impl BleAdvertisement {
                                 .write(&discovery_characteristic, &device_data, WriteType::WithoutResponse)
                                 .await;
                         }
+                        
+                        let _ = peripheral.disconnect().await;
                     }
                     _ => {}
                 }
             }
         });
-
-        while !join_handle.is_finished() {
-            sleep(Duration::new(100, 0));
-        }
     }
 }

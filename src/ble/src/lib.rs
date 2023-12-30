@@ -20,6 +20,8 @@ mod tests {
             device_type: i32::from(DeviceType::Mobile)
         };
 
+        println!("Hello");
+        dbg!("Test 1");
         let advertisement = BleAdvertisement::new(&my_device);
         advertisement.start_advertising();
 

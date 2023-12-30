@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use protocol::discovery::Device;
 use protocol::DiscoveryDelegate;
 use crate::platforms::apple::peripheral_manager::PeripheralManager;
@@ -10,7 +10,27 @@ mod converter;
 mod events;
 mod central_manager;
 
-static mut DISCOVERED_DEVICES: Mutex<Vec<Device>> = Mutex::new(Vec::new());
+pub(crate) fn get_discovered_devices_mutex() -> &'static Mutex<Vec<Device>> {
+    static ARRAY: OnceLock<Mutex<Vec<Device>>> = OnceLock::new();
+    return ARRAY.get_or_init(|| Mutex::new(Vec::new()));
+}
+
+pub(crate) fn add_new_device(device: Device) -> bool {
+    let devices = get_discovered_devices_mutex()
+        .get_mut()
+        .expect("Failed to unwrap get_mut() on discovered devices");
+
+    for existing_device in devices {
+        if existing_device.id == device.id {
+            return false;
+        }
+    }
+
+    devices.push(device);
+
+    return true;
+}
+
 static mut DISCOVERY_DELEGATE: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>> = None;
 
 pub struct BleDiscovery {
@@ -47,11 +67,11 @@ impl BleDiscovery {
         self.peripheral_manager.stop_advertising();
     }
 
-    pub fn get_devices(&self) -> Vec<Device> {
-        unsafe {
-            return DISCOVERED_DEVICES.lock()
-                .expect("Failed to lock DISCOVERED_DEVICES")
-                .to_vec()
-        }
+    pub fn get_devices(&self) -> Vec<&Device> {
+        return get_discovered_devices_mutex()
+            .lock()
+            .expect("Failed to lock discovered_devices")
+            .iter()
+            .collect();
     }
 }
