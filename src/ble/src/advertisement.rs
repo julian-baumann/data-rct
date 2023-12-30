@@ -71,45 +71,45 @@ impl BleAdvertisement {
 
             println!("Started scan");
 
-            events.for_each_concurrent(None, async |event| match event {
-                CentralEvent::DeviceDiscovered(id) => {
-                    println!("DeviceDiscovered: {:?}", id);
-                    let peripheral = central.peripheral(&id).await;
+            while let Some(event) = events.next().await {
+                match event {
+                    CentralEvent::DeviceDiscovered(id) => {
+                        println!("DeviceDiscovered: {:?}", id);
+                        let peripheral = central.peripheral(&id).await;
 
-                    if let Ok(peripheral) = peripheral {
-                        let _ = peripheral.connect().await;
+                        if let Ok(peripheral) = peripheral {
+                            let _ = peripheral.connect().await;
+                        }
                     }
-                }
-                CentralEvent::DeviceConnected(id) => {
-                    println!("DeviceConnected: {:?}", id);
-                    let Ok(peripheral) = central.peripheral(&id).await else {
-                        return;
-                    };
+                    CentralEvent::DeviceConnected(id) => {
+                        println!("DeviceConnected: {:?}", id);
+                        let peripheral = central.peripheral(&id).await;
 
-                    if peripheral.discover_services().await.is_err() {
-                        return;
-                    };
+                        let Ok(peripheral) = peripheral else {
+                            return;
+                        };
 
-                    let characteristics = peripheral.characteristics();
+                        let Ok(()) = peripheral.discover_services().await else {
+                            return;
+                        };
 
-                    let discovery_characteristic = characteristics.iter().find(|c| {
-                        c.uuid == Uuid::parse_str(DISCOVERY_CHARACTERISTIC_UUID).unwrap()
-                    });
+                        let characteristics = peripheral.characteristics();
 
-                    if let Some(discovery_characteristic) = discovery_characteristic {
-                        let _ = peripheral
-                            .write(
-                                &discovery_characteristic,
-                                &device_data,
-                                WriteType::WithoutResponse,
-                            )
-                            .await;
+                        let discovery_characteristic = characteristics
+                            .iter()
+                            .find(|c| c.uuid == Uuid::parse_str(DISCOVERY_CHARACTERISTIC_UUID).unwrap());
+
+                        if let Some(discovery_characteristic) = discovery_characteristic {
+                            let _ = peripheral
+                                .write(&discovery_characteristic, &device_data, WriteType::WithoutResponse)
+                                .await;
+                        }
+
+                        let _ = peripheral.disconnect().await;
                     }
-
-                    let _ = peripheral.disconnect().await;
+                    _ => {}
                 }
-                _ => {}
-            });
+            }
         });
     }
 }
