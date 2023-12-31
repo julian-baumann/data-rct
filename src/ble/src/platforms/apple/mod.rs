@@ -16,11 +16,11 @@ pub(crate) fn get_discovered_devices_mutex() -> &'static Mutex<Vec<Device>> {
 }
 
 pub(crate) fn add_new_device(device: Device) -> bool {
-    let devices = get_discovered_devices_mutex()
-        .get_mut()
+    let mut devices = get_discovered_devices_mutex()
+        .lock()
         .expect("Failed to unwrap get_mut() on discovered devices");
 
-    for existing_device in devices {
+    for existing_device in devices.clone() {
         if existing_device.id == device.id {
             return false;
         }
@@ -29,6 +29,16 @@ pub(crate) fn add_new_device(device: Device) -> bool {
     devices.push(device);
 
     return true;
+}
+
+pub(crate) fn remove_device_from_list(device_id: String) {
+    let mut devices = get_discovered_devices_mutex()
+        .lock()
+        .expect("Failed to unwrap get_mut() on discovered devices");
+
+    if let Some(index) = devices.iter().position(|d| d.id == device_id) {
+        devices.remove(index);
+    }
 }
 
 static mut DISCOVERY_DELEGATE: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>> = None;
@@ -67,11 +77,12 @@ impl BleDiscovery {
         self.peripheral_manager.stop_advertising();
     }
 
-    pub fn get_devices(&self) -> Vec<&Device> {
+    pub fn get_devices(&self) -> Vec<Device> {
         return get_discovered_devices_mutex()
             .lock()
             .expect("Failed to lock discovered_devices")
             .iter()
+            .map(|device| device.clone())
             .collect();
     }
 }

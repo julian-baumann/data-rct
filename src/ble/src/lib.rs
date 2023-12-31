@@ -7,6 +7,8 @@ pub const DISCOVERY_CHARACTERISTIC_UUID: &str = "0BEBF3FE-9A5E-4ED1-8157-76281B3
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+    use std::time::Duration;
     use protocol::discovery::{Device};
     use protocol::discovery::device::DeviceType;
     use crate::advertisement::BleAdvertisement;
@@ -20,10 +22,11 @@ mod tests {
             device_type: i32::from(DeviceType::Mobile)
         };
 
-        println!("Hello");
-        dbg!("Test 1");
         let advertisement = BleAdvertisement::new(&my_device);
         advertisement.start_advertising();
+
+        thread::sleep(Duration::from_secs(10));
+        advertisement.stop_advertising();
 
         loop {}
     }

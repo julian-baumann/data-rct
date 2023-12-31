@@ -18,10 +18,6 @@ message MessageHeader {
     }
 }
 
-message KeyExchange {
-    
-}
-
 message TransferRequest {
     discovery.Device device = 1;
     CommunicationIntents intent = 2;

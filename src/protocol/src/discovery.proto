@@ -3,11 +3,9 @@ syntax = "proto3";
 package DataRCT.discovery;
 
 message DeviceDiscoveryMessage {
-    DiscoveryType Type = 1;
-
-    enum DiscoveryType {
-        ADD = 0;
-        REMOVE = 1;
+    oneof device_data {
+        Device device = 2;
+        string device_id = 3;
     }
 }
 

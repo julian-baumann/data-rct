@@ -1,12 +1,13 @@
 use objc::{msg_send, sel, sel_impl};
 use objc::runtime::{BOOL, NO, Object, Sel, YES};
 use objc_foundation::{INSArray, INSData, INSString, NSArray, NSData, NSObject, NSString};
-use protocol::discovery::Device;
+use protocol::discovery::{Device, DeviceDiscoveryMessage};
+use protocol::discovery::device_discovery_message::{DeviceData};
 use crate::platforms::apple::constants::POWERED_ON_IVAR;
 use crate::platforms::apple::converter::IntoBool;
 use crate::platforms::apple::ffi::{CBATTError, CBManagerState};
-use protocol::prost::Message;
-use crate::platforms::apple::{add_new_device, DISCOVERED_DEVICES, DISCOVERY_DELEGATE, get_discovered_devices_mutex};
+use protocol::prost::{Message};
+use crate::platforms::apple::{add_new_device, DISCOVERY_DELEGATE, remove_device_from_list};
 
 pub extern "C" fn peripheral_manager_did_update_state(
     delegate: &mut Object,
@@ -89,6 +90,24 @@ pub extern "C" fn peripheral_manager_did_receive_read_request(
     }
 }
 
+unsafe fn add_device(device: Device) {
+    let device_added = add_new_device(device.clone());
+
+    if device_added {
+        if let Some(discovery_delegate) = &DISCOVERY_DELEGATE {
+            discovery_delegate.lock().unwrap().device_added(device);
+        }
+    }
+}
+
+unsafe fn remove_device(device_id: String) {
+    remove_device_from_list(device_id.clone());
+
+    if let Some(discovery_delegate) = &DISCOVERY_DELEGATE {
+        discovery_delegate.lock().unwrap().device_removed(device_id);
+    }
+}
+
 pub extern "C" fn peripheral_manager_did_receive_write_requests(
     _delegate: &mut Object,
     _cmd: Sel,
@@ -100,16 +119,19 @@ pub extern "C" fn peripheral_manager_did_receive_write_requests(
             let value : *mut NSData = msg_send![request, value];
             let value = (*value).bytes();
 
-            let device = Device::decode_length_delimited(value);
+            let discovery_message = DeviceDiscoveryMessage::decode_length_delimited(value);
+            let Ok(message) = discovery_message else {
+                break;
+            };
 
-            if let Ok(device) = device {
-                let device_added = add_new_device(device.clone());
-
-                if device_added {
-                    if let Some(discovery_delegate) = &DISCOVERY_DELEGATE {
-                        discovery_delegate.lock().unwrap().device_added(device.clone());
-                    }
-                }
+            match message.device_data {
+                Some(DeviceData::Device(device_data)) => {
+                    add_device(device_data);
+                },
+                Some(DeviceData::DeviceId(device_id)) => {
+                    remove_device(device_id);
+                },
+                _ => {}
             }
 
             let _: Result<(), ()> = msg_send![peripheral, respondToRequest:request
