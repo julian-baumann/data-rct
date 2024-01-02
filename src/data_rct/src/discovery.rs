@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use ble::platforms::apple::BleDiscovery;
-use protocol::discovery::Device;
+use ble::discovery::BleDiscovery;
 use protocol::DiscoveryDelegate;
 
 #[derive(Error, Debug)]
@@ -31,21 +30,29 @@ impl Discovery {
         })
     }
 
-    pub fn is_available(&self) -> bool {
-        return self.ble_discovery.is_powered_on();
-    }
-
     pub fn start(&self) {
-        self.ble_discovery.start_discovering_devices();
+        self.ble_discovery.start();
     }
 
     pub fn stop(&self) {
-        self.ble_discovery.stop_discovering_devices();
+        self.ble_discovery.stop();
     }
 
-    pub fn get_devices(&self) -> Vec<Device> {
-        return self.ble_discovery.get_devices();
-    }
+    // pub fn is_available(&self) -> bool {
+    //     return self.ble_discovery.is_powered_on();
+    // }
+
+    // pub fn start(&self) {
+    //     self.ble_discovery.start_advertising();
+    // }
+    //
+    // pub fn stop(&self) {
+    //     self.ble_discovery.stop_advertising();
+    // }
+
+    // pub fn get_devices(&self) -> Vec<Device> {
+    //     return self.ble_discovery.get_devices();
+    // }
 }
 
 

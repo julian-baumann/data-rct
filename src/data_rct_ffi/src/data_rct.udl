@@ -15,6 +15,7 @@ enum TransmissionSetupError {
 interface NearbyServer {
     [Throws=TransmissionSetupError]
     constructor(Device my_device);
+    boolean is_available();
     void advertise();
     void stop_advertising();
 };
@@ -33,9 +34,6 @@ callback interface DiscoveryDelegate {
 interface Discovery {
     [Throws=DiscoverySetupError]
     constructor(DiscoveryDelegate? delegate);
-    boolean is_available();
     void start();
     void stop();
-
-    sequence<Device> get_devices();
 };

@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_DataRCT_313f_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_DataRCT_dd7d_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_DataRCT_313f_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_DataRCT_dd7d_rustbuffer_free(self, $0) }
     }
 }
 
@@ -353,10 +353,8 @@ private struct FfiConverterString: FfiConverter {
 }
 
 public protocol DiscoveryProtocol {
-    func isAvailable() -> Bool
     func start()
     func stop()
-    func getDevices() -> [Device]
 }
 
 public class Discovery: DiscoveryProtocol {
@@ -373,46 +371,28 @@ public class Discovery: DiscoveryProtocol {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeDiscoverySetupError.self) {
-                DataRCT_313f_Discovery_new(
+                DataRCT_dd7d_Discovery_new(
                     FfiConverterOptionCallbackInterfaceDiscoveryDelegate.lower(delegate), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_313f_Discovery_object_free(pointer, $0) }
-    }
-
-    public func isAvailable() -> Bool {
-        return try! FfiConverterBool.lift(
-            try!
-                rustCall {
-                    DataRCT_313f_Discovery_is_available(self.pointer, $0)
-                }
-        )
+        try! rustCall { ffi_DataRCT_dd7d_Discovery_object_free(pointer, $0) }
     }
 
     public func start() {
         try!
             rustCall {
-                DataRCT_313f_Discovery_start(self.pointer, $0)
+                DataRCT_dd7d_Discovery_start(self.pointer, $0)
             }
     }
 
     public func stop() {
         try!
             rustCall {
-                DataRCT_313f_Discovery_stop(self.pointer, $0)
+                DataRCT_dd7d_Discovery_stop(self.pointer, $0)
             }
-    }
-
-    public func getDevices() -> [Device] {
-        return try! FfiConverterSequenceTypeDevice.lift(
-            try!
-                rustCall {
-                    DataRCT_313f_Discovery_get_devices(self.pointer, $0)
-                }
-        )
     }
 }
 
@@ -447,6 +427,7 @@ public struct FfiConverterTypeDiscovery: FfiConverter {
 }
 
 public protocol NearbyServerProtocol {
+    func isAvailable() -> Bool
     func advertise()
     func stopAdvertising()
 }
@@ -465,27 +446,36 @@ public class NearbyServer: NearbyServerProtocol {
         self.init(unsafeFromRawPointer: try
 
             rustCallWithError(FfiConverterTypeTransmissionSetupError.self) {
-                DataRCT_313f_NearbyServer_new(
+                DataRCT_dd7d_NearbyServer_new(
                     FfiConverterTypeDevice.lower(myDevice), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_DataRCT_313f_NearbyServer_object_free(pointer, $0) }
+        try! rustCall { ffi_DataRCT_dd7d_NearbyServer_object_free(pointer, $0) }
+    }
+
+    public func isAvailable() -> Bool {
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    DataRCT_dd7d_NearbyServer_is_available(self.pointer, $0)
+                }
+        )
     }
 
     public func advertise() {
         try!
             rustCall {
-                DataRCT_313f_NearbyServer_advertise(self.pointer, $0)
+                DataRCT_dd7d_NearbyServer_advertise(self.pointer, $0)
             }
     }
 
     public func stopAdvertising() {
         try!
             rustCall {
-                DataRCT_313f_NearbyServer_stop_advertising(self.pointer, $0)
+                DataRCT_dd7d_NearbyServer_stop_advertising(self.pointer, $0)
             }
     }
 }
@@ -798,7 +788,7 @@ private enum FfiConverterCallbackInterfaceDiscoveryDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_DataRCT_313f_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
+            ffi_DataRCT_dd7d_DiscoveryDelegate_init_callback(foreignCallbackCallbackInterfaceDiscoveryDelegate, err)
         }
     }
 
@@ -864,28 +854,6 @@ private struct FfiConverterOptionCallbackInterfaceDiscoveryDelegate: FfiConverte
         case 1: return try FfiConverterCallbackInterfaceDiscoveryDelegate.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
-    }
-}
-
-private struct FfiConverterSequenceTypeDevice: FfiConverterRustBuffer {
-    typealias SwiftType = [Device]
-
-    public static func write(_ value: [Device], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterTypeDevice.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Device] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [Device]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeDevice.read(from: &buf))
-        }
-        return seq
     }
 }
 

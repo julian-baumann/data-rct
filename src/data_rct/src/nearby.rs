@@ -1,4 +1,4 @@
-use ble::advertisement::BleAdvertisement;
+use ble::BleAdvertisement;
 use protocol::discovery::Device;
 use crate::transmission::{DataTransmission, TransmissionSetupError};
 use crate::transmission::tcp::TcpTransmissionListener;
@@ -15,14 +15,16 @@ impl NearbyServer {
             Err(_) => return Err(TransmissionSetupError::UnableToStartTcpServer)
         };
 
-        let ble_advertisement = BleAdvertisement::new(
-            &my_device
-        );
+        let ble_advertisement = BleAdvertisement::new(my_device);
 
         return Ok(Self {
             tcp_server,
             ble_advertisement
         });
+    }
+
+    pub fn is_available(&self) -> bool {
+        return self.ble_advertisement.is_powered_on();
     }
 
     pub fn advertise(&self) {

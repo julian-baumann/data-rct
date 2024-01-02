@@ -1,5 +1,16 @@
-pub mod platforms;
-pub mod advertisement;
+pub mod discovery;
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod apple;
+
+#[cfg(any(target_os = "android"))]
+mod android;
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub use apple::BleAdvertisement;
+
+#[cfg(any(target_os = "android"))]
+pub use android::BleAdvertisement;
 
 pub const DISCOVERY_SERVICE_UUID: &str = "68D60EB2-8AAA-4D72-8851-BD6D64E169B7";
 pub const DISCOVERY_CHARACTERISTIC_UUID: &str = "0BEBF3FE-9A5E-4ED1-8157-76281B3F0DA5";
@@ -11,8 +22,8 @@ mod tests {
     use std::time::Duration;
     use protocol::discovery::{Device};
     use protocol::discovery::device::DeviceType;
-    use crate::advertisement::BleAdvertisement;
-    use crate::platforms::apple::BleDiscovery;
+    use crate::discovery::BleDiscovery;
+    use crate::apple::BleAdvertisement;
 
     #[test]
     pub fn test_advertisement() {
@@ -22,26 +33,28 @@ mod tests {
             device_type: i32::from(DeviceType::Mobile)
         };
 
-        let advertisement = BleAdvertisement::new(&my_device);
+        let advertisement = BleAdvertisement::new(my_device);
+
+        while !advertisement.is_powered_on() {}
+
         advertisement.start_advertising();
 
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(20));
         advertisement.stop_advertising();
-
-        loop {}
     }
 
     #[test]
     pub fn test_discovery() {
-        let peripheral = BleDiscovery::new(None);
-        while !peripheral.is_powered_on() {}
+        let my_device = Device {
+            id: "43ED2550-3E5F-4ACC-BF58-DD0361A605C5".to_string(),
+            name: "Test Device".to_string(),
+            device_type: i32::from(DeviceType::Mobile)
+        };
 
-        peripheral.start_discovering_devices();
-
-        while !peripheral.is_discovering() {}
-
-        println!("Is advertising");
-
+        let discovery = BleDiscovery::new(None);
+        discovery.start();
+        // thread::sleep(Duration::from_secs(20));
+        // discovery.stop();
         loop {}
     }
 
