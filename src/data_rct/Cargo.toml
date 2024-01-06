@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 protocol = { path = "../protocol" }
-ble = { path = "../ble" }
 crossbeam-channel = "0.5"
 mdns-sd = "0.10.1"
 x25519-dalek = "2.0.0-rc.3"

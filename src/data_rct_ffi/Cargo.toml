@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["lib", "staticlib", "cdylib"]
 
 [[bin]]
 name = "uniffi-bindgen"
@@ -13,8 +13,8 @@ path = "uniffi-bindgen.rs"
 
 [dependencies]
 data_rct = { package = "data_rct", path = "../data_rct" }
-uniffi = { version = "0.23.0", features = ["cli"] }
+uniffi = { version = "0.25.3", features = ["cli"] }
 thiserror = "1.0"
 
 [build-dependencies]
-uniffi = { version = "0.23.0", features = ["build"] }
+uniffi = { version = "0.25.3", features = ["build"] }

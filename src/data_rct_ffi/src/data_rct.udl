@@ -1,4 +1,6 @@
 namespace DataRCT {
+    string get_ble_service_uuid();
+    string get_ble_characteristic_uuid();
 };
 
 dictionary Device {
@@ -12,28 +14,42 @@ enum TransmissionSetupError {
     "UnableToStartTcpServer"
 };
 
-interface NearbyServer {
-    [Throws=TransmissionSetupError]
-    constructor(Device my_device);
-    boolean is_available();
-    void advertise();
-    void stop_advertising();
-};
-
 [Error]
 enum DiscoverySetupError {
     "UnableToSetupUdp",
     "UnableToSetupMdns"
 };
 
-callback interface DiscoveryDelegate {
+callback interface DeviceListUpdateDelegate {
     void device_added(Device value);
     void device_removed(string device_id);
 };
 
-interface Discovery {
-    [Throws=DiscoverySetupError]
-    constructor(DiscoveryDelegate? delegate);
+callback interface BleServerImplementationDelegate {
+    void start_server();
+    void stop_server();
+};
+
+interface InternalNearbyServer {
+    [Throws=TransmissionSetupError]
+    constructor(Device my_device);
+    void add_ble_implementation(BleServerImplementationDelegate implementation);
+    void change_device(Device device);
     void start();
     void stop();
+    bytes get_advertisement_data();
+};
+
+callback interface BleDiscoveryImplementationDelegate {
+    void start_scanning();
+    void stop_scanning();
+};
+
+interface InternalDiscovery {
+    [Throws=DiscoverySetupError]
+    constructor(DeviceListUpdateDelegate? delegate);
+    void add_ble_implementation(BleDiscoveryImplementationDelegate implementation);
+    void start();
+    void stop();
+    void parse_discovery_message(bytes data);
 };

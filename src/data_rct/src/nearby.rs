@@ -1,37 +1,67 @@
-use ble::BleAdvertisement;
-use protocol::discovery::Device;
+use std::fmt::Debug;
+use protocol::discovery::{Device};
 use crate::transmission::{DataTransmission, TransmissionSetupError};
 use crate::transmission::tcp::TcpTransmissionListener;
 
+pub trait BleServerImplementationDelegate: Send + Sync + Debug {
+    fn start_server(&self);
+    fn stop_server(&self);
+}
+
+pub trait Connection {
+    fn get_device_info(&self) -> Device;
+    fn read(&self, length: u32) -> Vec<u8>;
+    fn write(&self, data: Vec<u8>);
+    fn disconnect(&self);
+}
+
 pub struct NearbyServer {
+    pub my_device: Device,
     tcp_server: TcpTransmissionListener,
-    ble_advertisement: BleAdvertisement
+    ble_server_implementation: Option<Box<dyn BleServerImplementationDelegate>>,
+    pub advertise: bool
 }
 
 impl NearbyServer {
     pub fn new(my_device: Device) -> Result<Self, TransmissionSetupError> {
         let tcp_server = match TcpTransmissionListener::new() {
             Ok(result) => result,
-            Err(_) => return Err(TransmissionSetupError::UnableToStartTcpServer)
+            Err(error) => return Err(TransmissionSetupError::UnableToStartTcpServer(error.to_string()))
         };
 
-        let ble_advertisement = BleAdvertisement::new(my_device);
-
         return Ok(Self {
+            my_device,
             tcp_server,
-            ble_advertisement
+            ble_server_implementation: None,
+            advertise: false
         });
     }
 
-    pub fn is_available(&self) -> bool {
-        return self.ble_advertisement.is_powered_on();
+    pub fn add_bluetooth_implementation(&mut self, implementation: Box<dyn BleServerImplementationDelegate>) {
+        self.ble_server_implementation = Some(implementation)
     }
 
-    pub fn advertise(&self) {
-        self.ble_advertisement.start_advertising();
+    pub fn change_device(&mut self, new_device: Device) {
+        self.my_device = new_device
     }
 
-    pub fn stop_advertising(&self) {
-        self.ble_advertisement.stop_advertising();
+    pub fn start(&mut self) {
+        self.advertise = true;
+
+        if let Some(ble_advertisement_implementation) = &self.ble_server_implementation {
+            ble_advertisement_implementation.start_server();
+        }
+    }
+
+    pub fn get_tcp_port(&self) -> u16 {
+        return self.tcp_server.port;
+    }
+
+    pub fn stop(&mut self) {
+        self.advertise = false;
+
+        if let Some(ble_advertisement_implementation) = &self.ble_server_implementation {
+            ble_advertisement_implementation.stop_server();
+        }
     }
 }

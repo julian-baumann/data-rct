@@ -1,7 +1,6 @@
 package com.julian_baumann.data_rctapp
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,32 +15,62 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.app.ActivityCompat
-import com.julian_baumann.data_rct.BleAdvertisement
 import com.julian_baumann.data_rct.Device
 import com.julian_baumann.data_rct.Discovery
 import com.julian_baumann.data_rct.DiscoveryDelegate
+import com.julian_baumann.data_rct.NearbyServer
 import com.julian_baumann.data_rctapp.ui.theme.DataRCTTheme
+import java.util.*
 
 class MainActivity : ComponentActivity(), DiscoveryDelegate {
     private val devices = mutableStateListOf<Device>()
+    private var advertisement: NearbyServer? = null
+    private var discovery: Discovery? = null
 
-    init {
-        val device = Device(id = "", name = "Android Device", deviceType = 0)
+    private var bluetoothConnectPermissionGranted = false
+    private var bluetoothAdvertisePermissionGranted = false
+    private var bluetoothScanPermissionGranted = false
+    private var accessLocationPermissionGranted = false
 
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted) {
-                println("Permission granted!")
+    private val bleConnectPermissionActivity = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        bluetoothConnectPermissionGranted = isGranted
+        startServer()
+    }
 
-                val advertisement = BleAdvertisement(baseContext, device)
-                advertisement.start()
-            }
+    private val accessLocationPermissionActivity = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        accessLocationPermissionGranted = isGranted
+        startServer()
+    }
+
+    private val bleAdvertisePermissionActivity = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        bluetoothAdvertisePermissionGranted = isGranted
+        startServer()
+    }
+
+    private val bleScanPermissionActivity = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        bluetoothScanPermissionGranted = isGranted
+        startServer()
+    }
+
+    private fun startServer() {
+        if (!bluetoothConnectPermissionGranted
+            || !bluetoothAdvertisePermissionGranted
+            || !bluetoothScanPermissionGranted
+            || !accessLocationPermissionGranted) {
+            return
         }
 
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE), 0)
+        val device = Device(
+            id = UUID.randomUUID().toString(),
+            name = "Android Device",
+            deviceType = 0
+        )
 
-//        val discovery = Discovery(delegate = this)
-//        discovery.start()
+        advertisement = NearbyServer(baseContext, device)
+        advertisement?.start()
+
+        discovery = Discovery(baseContext, this)
+        discovery?.startScanning()
     }
 
     override fun deviceAdded(value: Device) {
@@ -53,8 +82,19 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate {
         println("Device was removed")
     }
 
+    override fun onStop() {
+        super.onStop()
+        advertisement?.stop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        bleConnectPermissionActivity.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        bleAdvertisePermissionActivity.launch(Manifest.permission.BLUETOOTH_ADVERTISE)
+        accessLocationPermissionActivity.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        bleScanPermissionActivity.launch(Manifest.permission.BLUETOOTH_SCAN)
+
         setContent {
             DataRCTTheme {
                 // A surface container using the 'background' color from the theme
@@ -62,7 +102,7 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Greeting("Android")
+                    DeviceList(devices)
                 }
             }
         }

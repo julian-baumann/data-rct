@@ -2,14 +2,16 @@ plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
     id 'idea'
+    id "org.mozilla.rust-android-gradle.rust-android"
 }
 
 android {
     namespace 'com.julian_baumann.data_rct'
     compileSdk 34
+    ndkVersion '26.1.10909125'
 
     defaultConfig {
-        minSdk 26
+        minSdk 29
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -44,8 +46,28 @@ android {
     }
 }
 
-dependencies {
+cargo {
+    module  = "../../../"       // Or whatever directory contains your Cargo.toml
+    libname = "data_rct_ffi"          // Or whatever matches Cargo.toml's [package] name.
+    targets = ["arm", "x86", "arm64"]  // See bellow for a longer list of options
+    apiLevel = 26
+    profile = "release"
+}
 
+tasks.matching { it.name.matches(/merge.*JniLibFolders/) }.configureEach {
+    it.inputs.dir(new File(buildDir, "rustJniLibs/android"))
+    it.dependsOn("cargoBuild")
+}
+
+//tasks.configureEach {
+//    if ((this.name == "mergeDebugJniLibFolders" || this.name == "mergeReleaseJniLibFolders")) {
+//        this.dependsOn("cargoBuild")
+//        // fix mergeDebugJniLibFolders  UP-TO-DATE
+//        this.inputs.dir(buildDir.resolve("rustJniLibs/android"))
+//    }
+//}
+
+dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'

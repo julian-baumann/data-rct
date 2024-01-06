@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-    "src/ble",
     "src/data_rct",
-    "src/data_rct_ffi"
-, "src/protocol"]
+    "src/data_rct_ffi",
+    "src/protocol"
+]
