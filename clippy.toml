@@ -1,0 +1,2 @@
+[lints]
+allow = ["needless_return"]

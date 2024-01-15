@@ -46,7 +46,7 @@ pub enum IncomingErrors {
 
 
 #[derive(Error, Debug)]
-pub enum ConnectErrors {
+pub enum DeprecatedConnectStreamErrors {
     #[error("Unknown write error: {0}")]
     UnknownWriteError(io::Error),
 
@@ -120,10 +120,10 @@ pub trait StreamRead: Read {
 }
 
 pub trait StreamWrite: Write {
-    fn write_stream(&mut self, buffer: &[u8]) -> Result<usize, ConnectErrors> {
+    fn write_stream(&mut self, buffer: &[u8]) -> Result<usize, DeprecatedConnectStreamErrors> {
         return match self.write(buffer) {
             Ok(value) => Ok(value),
-            Err(error) => Err(ConnectErrors::UnknownWriteError(error))
+            Err(error) => Err(DeprecatedConnectStreamErrors::UnknownWriteError(error))
         }
     }
 }

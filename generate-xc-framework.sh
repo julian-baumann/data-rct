@@ -38,7 +38,9 @@ function BuildStaticLibrary()
 function GenerateUniffiBindings()
 {
     PrintInfo "Generating bindings"
-    cargo run --bin uniffi-bindgen generate "src/data_rct_ffi/src/data_rct.udl" --language swift --out-dir "bindings/swift/Sources/DataRCT"
+    cargo build --release
+    cargo run --bin uniffi-bindgen generate --library target/release/libdata_rct_ffi.a --language swift --out-dir "bindings/swift/Sources/DataRCT"
+    # cargo run --bin uniffi-bindgen generate "src/data_rct_ffi/src/data_rct.udl" --language swift --out-dir "bindings/swift/Sources/DataRCT"
     CheckForErrorAndExitIfNecessary
 
     pushd bindings/swift

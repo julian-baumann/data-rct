@@ -1,3 +1,4 @@
+#![feature(read_buf)]
 extern crate core;
 
 pub mod discovery;
@@ -5,6 +6,7 @@ pub mod encryption;
 pub mod stream;
 pub mod nearby;
 pub mod transmission;
+pub mod connection;
 
 pub use protocol;
 pub use protocol::DiscoveryDelegate;

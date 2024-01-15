@@ -25,19 +25,35 @@ callback interface DeviceListUpdateDelegate {
     void device_removed(string device_id);
 };
 
+interface NativeStream {
+    constructor(NativeStreamDelegate delegate);
+    void fill_buffer(bytes data);
+};
+
 callback interface BleServerImplementationDelegate {
     void start_server();
     void stop_server();
 };
 
-interface InternalNearbyServer {
-    [Throws=TransmissionSetupError]
-    constructor(Device my_device);
-    void add_ble_implementation(BleServerImplementationDelegate implementation);
-    void change_device(Device device);
-    void start();
-    void stop();
-    bytes get_advertisement_data();
+dictionary BluetoothLeConnectionInfo {
+    string uuid;
+    u32 psm;
+};
+
+dictionary TcpConnectionInfo {
+    string hostname;
+    u32 port;
+};
+
+interface ConnectionRequest {
+};
+
+callback interface NearbyConnectionDelegate {
+    void received_connection_request(ConnectionRequest request);
+};
+
+callback interface L2CAPClientDelegate {
+    NativeStream? open_l2cap_connection(string peripheral_uuid, u32 psm);
 };
 
 callback interface BleDiscoveryImplementationDelegate {
@@ -51,5 +67,10 @@ interface InternalDiscovery {
     void add_ble_implementation(BleDiscoveryImplementationDelegate implementation);
     void start();
     void stop();
-    void parse_discovery_message(bytes data);
+    void parse_discovery_message(bytes data, string? ble_uuid);
+};
+
+callback interface NativeStreamDelegate {
+    u64 write(bytes data);
+    void close();
 };

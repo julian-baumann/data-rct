@@ -3,10 +3,21 @@ syntax = "proto3";
 package DataRCT.discovery;
 
 message DeviceDiscoveryMessage {
-    oneof device_data {
-        Device device = 2;
-        string device_id = 3;
+    oneof content {
+        DeviceConnectionInfo device_connection_info = 1;
+        string offline_device_id = 2;
     }
+}
+
+message DeviceConnectionInfo {
+    Device device = 1;
+    optional TcpConnectionInfo tcp = 2;
+    optional BluetoothLeConnectionInfo ble = 3;
+}
+
+message BluetoothLeConnectionInfo {
+    string uuid = 1;
+    uint32 psm = 2;
 }
 
 message Device {

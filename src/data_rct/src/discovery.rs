@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use thiserror::Error;
 use protocol::{DiscoveryDelegate};
-use protocol::discovery::{Device, DeviceDiscoveryMessage};
-use protocol::discovery::device_discovery_message::DeviceData;
+use protocol::discovery::{DeviceConnectionInfo, DeviceDiscoveryMessage, Device};
+use protocol::discovery::device_discovery_message::Content;
 use protocol::prost::Message;
 
 #[derive(Error, Debug)]
@@ -21,14 +21,17 @@ pub trait BleDiscoveryImplementationDelegate: Send + Sync + Debug {
     fn stop_scanning(&self);
 }
 
+static DISCOVERED_DEVICES: OnceLock<RwLock<HashMap<String, DeviceConnectionInfo>>> = OnceLock::new();
+
 pub struct Discovery {
     pub ble_discovery_implementation: Option<Box<dyn BleDiscoveryImplementationDelegate>>,
-    discovery_delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>,
-    discovered_devices: HashMap<String, Device>
+    discovery_delegate: Option<Arc<Mutex<Box<dyn DiscoveryDelegate>>>>
 }
 
 impl Discovery {
     pub fn new(delegate: Option<Box<dyn DiscoveryDelegate>>) -> Result<Self, DiscoverySetupError> {
+        DISCOVERED_DEVICES.get_or_init(|| RwLock::new(HashMap::new()));
+
         let callback_arc = match delegate {
             Some(callback) => Some(Arc::new(Mutex::new(callback))),
             None => None
@@ -36,9 +39,16 @@ impl Discovery {
 
         Ok(Self {
             ble_discovery_implementation: None,
-            discovery_delegate: callback_arc,
-            discovered_devices: HashMap::new()
+            discovery_delegate: callback_arc
         })
+    }
+
+    pub fn get_connection_details(device: Device) -> Option<DeviceConnectionInfo> {
+        if DISCOVERED_DEVICES.get().unwrap().read().unwrap().contains_key(&device.id) {
+            return Some(DISCOVERED_DEVICES.get().unwrap().read().unwrap()[&device.id].clone());
+        }
+
+        return None;
     }
 
     pub fn add_ble_implementation(&mut self, implementation: Box<dyn BleDiscoveryImplementationDelegate>) {
@@ -57,26 +67,39 @@ impl Discovery {
         }
     }
 
-    pub fn parse_discovery_message(&mut self, data: Vec<u8>) {
+    pub fn parse_discovery_message(&mut self, data: Vec<u8>, ble_uuid: Option<String>) {
         let discovery_message = DeviceDiscoveryMessage::decode_length_delimited(data.as_slice());
 
         let Ok(discovery_message) = discovery_message else {
             return;
         };
 
-        match discovery_message.device_data {
+        match discovery_message.content {
             None => {}
-            Some(DeviceData::Device(device)) => {
-                if !self.discovered_devices.contains_key(&device.id) {
-                    self.discovered_devices.insert(device.id.clone(), device.clone());
-                    self.add_discovered_device(device);
+            Some(Content::DeviceConnectionInfo(device_connection_info)) => {
+                let Some(device) = &device_connection_info.device else {
+                    return;
+                };
+
+                let mut device_connection_info = device_connection_info.clone();
+
+                if let Some(ble_uuid) = ble_uuid {
+                    if let Some(mut ble_info) = device_connection_info.ble {
+                        ble_info.uuid = ble_uuid;
+                        device_connection_info.ble = Some(ble_info);
+                    }
+                }
+
+                if !DISCOVERED_DEVICES.get().unwrap().read().unwrap().contains_key(&device.id) {
+                    DISCOVERED_DEVICES.get().unwrap().write().unwrap().insert(device.id.clone(), device_connection_info.clone());
+                    self.add_discovered_device(device.clone());
                 }
             }
-            Some(DeviceData::DeviceId(device_id)) => {
-                self.discovered_devices.remove(&device_id);
+            Some(Content::OfflineDeviceId(device_id)) => {
+                DISCOVERED_DEVICES.get().unwrap().write().unwrap().remove(&device_id);
                 self.remove_discovered_device(device_id);
             }
-        }
+        };
     }
 
     fn add_discovered_device(&self, device: Device) {

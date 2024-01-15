@@ -38,7 +38,7 @@ public enum BluetoothState: Int {
     }
 }
 
-public protocol NearbyServerDelegate {
+public protocol NearbyServerDelegate: NearbyConnectionDelegate {
     func nearbyServerDidUpdateState(state: BluetoothState)
 }
 
@@ -47,26 +47,30 @@ public class NearbyServer {
     private let bleServer: BLEServer
     public var state: BluetoothState { get { bleServer.state } }
     
-    public init(myDevice: Device, delegate: NearbyServerDelegate) throws {
-        internalHandler = try InternalNearbyServer(myDevice: myDevice)
+    public init(myDevice: Device, delegate: NearbyServerDelegate) {
+        internalHandler = InternalNearbyServer(myDevice: myDevice, delegate: delegate)
         bleServer = BLEServer(handler: internalHandler, delegate: delegate)
 
-        internalHandler.addBleImplementation(implementation: bleServer)
+        internalHandler.addBleImplementation(bleImplementation: bleServer)
     }
     
     public func changeDevice(_ newDevice: Device) {
-        internalHandler.changeDevice(device: newDevice)
+        internalHandler.changeDevice(newDevice: newDevice)
     }
     
-    public func start() throws {
+    public func start() async throws {
         try bleServer.ensureValidState()
 
-        internalHandler.start()
+        await internalHandler.start()
     }
     
-    public func stop() throws {
+    public func connect(_ device: Device) async {
+        await internalHandler.connect(device: device)
+    }
+    
+    public func stop() async throws {
         try bleServer.ensureValidState()
 
-        internalHandler.stop()
+        await internalHandler.stop()
     }
 }

@@ -39,6 +39,24 @@ class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerD
         }
     }
     
+    func startL2CapServer() {
+        peripheralManager.publishL2CAPChannel(withEncryption: false)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?) {
+        internalHandler.setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo(uuid: "", psm: UInt32(PSM)))
+        addService()
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        guard let channel = channel else {
+            return
+        }
+
+        channel.inputStream.open()
+        channel.outputStream.open()
+    }
+    
     func addService() {
         let service = CBMutableService(type: ServiceUUID, primary: true)
         let characteristic = CBMutableCharacteristic(
@@ -46,11 +64,6 @@ class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerD
             properties: [.read],
             value: nil,
             permissions: CBAttributePermissions.readable
-        )
-        
-        let descriptor = CBMutableDescriptor(
-            type: CBUUID(string: "DBF73DC3-450F-47BF-B79D-EC952A913E5B"),
-            value: "Test".data(using: String.Encoding.utf8)
         )
 
         service.characteristics = [characteristic]
@@ -75,9 +88,10 @@ class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerD
 //    }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-        print("read requested")
-        request.value = internalHandler.getAdvertisementData()
-        peripheral.respond(to: request, withResult: CBATTError.success)
+        Task {
+            request.value = await internalHandler.getAdvertisementData()
+            peripheral.respond(to: request, withResult: CBATTError.success)
+        }
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
@@ -87,19 +101,11 @@ class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerD
     }
     
     func startServer() {
-        addService()
+        startL2CapServer()
     }
     
     func stopServer() {
         peripheralManager.stopAdvertising()
         peripheralManager.removeAllServices()
-    }
-    
-    func read() -> Data {
-        fatalError("Unimplemented")
-    }
-    
-    func write(data: Data) {
-        fatalError("Unimplemented")
     }
 }

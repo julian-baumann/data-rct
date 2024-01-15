@@ -1,16 +1,16 @@
-uniffi::include_scaffolding!("data_rct");
-
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID};
 pub use data_rct::Device;
 pub use data_rct::encryption::{EncryptedStream};
-pub use data_rct::stream::{ConnectErrors, IncomingErrors};
+pub use data_rct::connection::{NativeStream, NativeStreamDelegate};
+use data_rct::connection::{Connection};
+pub use data_rct::stream::{IncomingErrors};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
 pub use data_rct::discovery::{Discovery, DiscoverySetupError, BleDiscoveryImplementationDelegate};
-pub use data_rct::nearby::{BleServerImplementationDelegate, NearbyServer};
-use data_rct::protocol::discovery::device_discovery_message::DeviceData;
-use data_rct::protocol::discovery::DeviceDiscoveryMessage;
+pub use data_rct::nearby::{BleServerImplementationDelegate, NearbyServer, ConnectionRequest, L2CAPClientDelegate, NearbyConnectionDelegate, ConnectErrors};
+use data_rct::protocol::discovery::device_discovery_message::Content;
+use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
 use data_rct::protocol::prost::Message;
 pub use data_rct::transmission::TransmissionSetupError;
 
@@ -34,95 +34,124 @@ pub fn get_ble_characteristic_uuid() -> String {
     return BLE_CHARACTERISTIC_UUID.to_string();
 }
 
-struct InternalNearbyServer {
-    handler: Arc<Mutex<NearbyServer>>
+#[derive(uniffi::Object)]
+pub struct InternalNearbyServer {
+    handler: Arc<tokio::sync::RwLock<NearbyServer>>
 }
 
+#[uniffi::export(async_runtime = "tokio")]
 impl InternalNearbyServer {
-    pub fn new(my_device: Device) -> Result<Self, TransmissionSetupError> {
-        let server = NearbyServer::new(my_device)?;
-        let server = Arc::new(Mutex::new(server));
 
-        Ok(Self {
+    #[uniffi::constructor]
+    pub fn new(my_device: Device, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+        let server = NearbyServer::new(my_device, delegate);
+        let server = Arc::new(tokio::sync::RwLock::new(server));
+
+        Self {
             handler: server
-        })
+        }
+    }
+
+    pub fn add_l2cap_client(&self, delegate: Box<dyn L2CAPClientDelegate>) {
+        self.handler.blocking_write().add_l2cap_client(delegate);
     }
 
     pub fn add_ble_implementation(&self, ble_implementation: Box<dyn BleServerImplementationDelegate>) {
-        println!("Adding implementation...");
-        self.handler.lock().expect("Failed to lock NearbyServer handler").add_bluetooth_implementation(ble_implementation);
-        println!("Added implementation");
+        self.handler.blocking_write().add_bluetooth_implementation(ble_implementation);
     }
-    
+
     pub fn change_device(&self, new_device: Device) {
-        self.handler.lock().expect("Failed to lock NearbyServer handler").my_device = new_device;
+        self.handler.blocking_write().change_device(new_device);
     }
 
-    pub fn get_advertisement_data(&self) -> Vec<u8> {
-        println!("Test 1");
+    pub fn set_ble_connection_details(&self, ble_details: BluetoothLeConnectionInfo) {
+        self.handler.blocking_write().set_bluetooth_le_details(ble_details)
+    }
 
-        let handler = self.handler.lock().expect("Failed to lock NearbyServer handler");
+    pub fn set_tcp_details(&self, tcp_details: TcpConnectionInfo) {
+        self.handler.blocking_write().set_tcp_details(tcp_details)
+    }
 
-        println!("Test 2");
-
-        if handler.advertise {
+    pub async fn get_advertisement_data(&self) -> Vec<u8> {
+        if self.handler.read().await.advertise {
             return DeviceDiscoveryMessage {
-                device_data: Some(DeviceData::Device(handler.my_device.clone())),
+                content: Some(
+                    Content::DeviceConnectionInfo(
+                        self.handler
+                            .read()
+                            .await
+                            .device_connection_info.clone()
+                    )
+                ),
             }.encode_length_delimited_to_vec();
         }
 
         return DeviceDiscoveryMessage {
-            device_data: Some(DeviceData::DeviceId(handler.my_device.id.clone())),
+            content: Some(
+                Content::OfflineDeviceId(
+                    self.handler
+                        .read()
+                        .await
+                        .device_connection_info.device
+                        .as_ref()
+                        .expect("Device not set!")
+                        .id.clone()
+                )
+            ),
         }.encode_length_delimited_to_vec();
     }
 
-    pub fn start(&self) {
-        println!("Starting...");
-        self.handler.lock().expect("Failed to lock NearbyServer handler").start();
-        println!("Started");
+    pub async fn start(&self) {
+        self.handler.write().await.start().await.expect("Failed to start server");
     }
 
-    pub fn stop(&self) {
+    pub async fn connect(&self, device: Device) {
+        self.handler.read().await.connect(device).await.expect("Failed to connect");
+    }
+
+    // pub async fn accept(&self) {
+    //     return self.handler.read().await.accept().await;
+    // }
+
+    pub async fn stop(&self) {
         println!("Stopping...");
-        self.handler.lock().expect("Failed to lock NearbyServer handler").stop();
+        self.handler.write().await.stop();
         println!("Stopped");
     }
 }
 
-
 pub struct InternalDiscovery {
-    handler: Arc<Mutex<Discovery>>
+    handler: Arc<RwLock<Discovery>>
 }
 
 impl InternalDiscovery {
     pub fn new(delegate: Option<Box<dyn DeviceListUpdateDelegate>>) -> Result<Self, DiscoverySetupError> {
 
         Ok(Self {
-            handler: Arc::new(Mutex::new(Discovery::new(delegate)?))
+            handler: Arc::new(RwLock::new(Discovery::new(delegate)?))
         })
     }
 
     pub fn add_ble_implementation(&self, implementation: Box<dyn BleDiscoveryImplementationDelegate>) {
-        self.handler.lock().expect("Failed to lock handler").add_ble_implementation(implementation);
+        self.handler.write().expect("Failed to lock handler").add_ble_implementation(implementation);
     }
 
     pub fn start(&self) {
-        if let Some(ble_discovery_implementation) = &self.handler.lock().expect("Failed to lock handler").ble_discovery_implementation {
+        if let Some(ble_discovery_implementation) = &self.handler.read().expect("Failed to lock handler").ble_discovery_implementation {
             ble_discovery_implementation.start_scanning();
         }
     }
 
     pub fn stop(&self) {
-        if let Some(ble_discovery_implementation) = &self.handler.lock().expect("Failed to lock handler").ble_discovery_implementation {
+        if let Some(ble_discovery_implementation) = &self.handler.read().expect("Failed to lock handler").ble_discovery_implementation {
             ble_discovery_implementation.stop_scanning();
         }
     }
 
-    pub fn parse_discovery_message(&self, data: Vec<u8>) {
-        self.handler.lock().expect("Failed to lock handler").parse_discovery_message(data);
+    pub fn parse_discovery_message(&self, data: Vec<u8>, ble_uuid: Option<String>) {
+        self.handler.write().expect("Failed to lock handler").parse_discovery_message(data, ble_uuid);
     }
 }
-
 
 trait UniffiReadWrite {
     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
@@ -140,15 +169,5 @@ impl UniffiReadWrite for EncryptedStream {
         return Ok(self.flush_immutable()?);
     }
 }
-// trait TransmissionFfi {
-//     fn connect_to_device(&self, recipient: Device) -> Result<Arc<EncryptedStream>, ConnectErrors>;
-// }
-//
-// impl TransmissionFfi for Transmission {
-//     fn connect_to_device(&self, recipient: Device) -> Result<Arc<EncryptedStream>, ConnectErrors> {
-//         return match self.open(&recipient) {
-//             Ok(result) => Ok(Arc::new(result)),
-//             Err(error) => Err(error)
-//         };
-//     }
-// }
+
+uniffi::include_scaffolding!("data_rct");

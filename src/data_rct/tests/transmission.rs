@@ -1,6 +1,6 @@
 use std::thread;
 use data_rct::discovery::DeviceInfo;
-use data_rct::stream::ConnectErrors;
+use data_rct::stream::DeprecatedConnectStreamErrors;
 use data_rct::transmission::{Transmission};
 
 #[test]
@@ -107,7 +107,7 @@ pub fn deny_transmission() {
         Ok(_) => false,
         Err(error) => {
             match error {
-                ConnectErrors::Rejected => true,
+                DeprecatedConnectStreamErrors::Rejected => true,
                 _ => false
             }
         }

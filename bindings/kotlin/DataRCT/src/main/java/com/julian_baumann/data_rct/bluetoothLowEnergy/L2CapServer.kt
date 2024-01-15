@@ -11,22 +11,18 @@ import androidx.core.app.ActivityCompat
 import java.io.IOException
 
 class L2CapServerThread(context: Context, adapter: BluetoothAdapter) : Thread() {
-    private val serverSocket: BluetoothServerSocket?
+    private val serverSocket: BluetoothServerSocket
 
     init {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
             throw BlePermissionNotGrantedException()
         }
 
-        var tmp: BluetoothServerSocket? = null
+        serverSocket = adapter.listenUsingInsecureL2capChannel()
+    }
 
-        try {
-            tmp = adapter.listenUsingInsecureL2capChannel()
-        } catch (error: IOException) {
-            Log.e("L2CAP", "Socket's listen() method failed", error)
-        }
-
-        serverSocket = tmp
+    public fun getPsm(): Int {
+        return serverSocket.psm
     }
 
     override fun run() {
@@ -34,17 +30,14 @@ class L2CapServerThread(context: Context, adapter: BluetoothAdapter) : Thread() 
 
         while (true) {
             try {
-                socket = serverSocket?.accept()
+                socket = serverSocket.accept()
             } catch (e: IOException) {
                 Log.e("L2CAP", "Socket's accept() method failed", e)
                 break
             }
 
             if (socket != null) {
-                // Handle connection in a separate thread
                 manageConnectedSocket(socket)
-                serverSocket?.close()
-                break
             }
         }
     }
@@ -56,7 +49,7 @@ class L2CapServerThread(context: Context, adapter: BluetoothAdapter) : Thread() 
 
     fun close() {
         try {
-            serverSocket?.close()
+            serverSocket.close()
         } catch (e: IOException) {
             Log.e("L2CAP", "Could not close the connect socket", e)
         }

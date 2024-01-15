@@ -1,30 +1,27 @@
 use std::error::Error;
-use std::io;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::net::Shutdown::Both;
-use crate::stream::{Stream, StreamRead, StreamWrite};
-use crate::transmission::{DataTransmission};
+use std::{io, thread};
+use std::net::{SocketAddr};
+use std::thread::Thread;
+use std::net::{TcpListener, TcpStream};
+use std::time::Duration;
+use crate::connection::Connection;
 
 
-// ==== Listener (Server) ====
-pub struct TcpTransmissionListener {
+pub struct TcpServer {
     pub port: u16,
     listener: TcpListener
 }
 
-impl StreamRead for TcpStream {}
-impl StreamWrite for TcpStream {}
-impl Stream for TcpStream {}
-
-impl DataTransmission for TcpTransmissionListener {
-    fn new() -> Result<TcpTransmissionListener, Box<dyn Error>> {
+impl TcpServer {
+    pub(crate) async fn new() -> Result<TcpServer, Box<dyn Error>> {
         let addresses = [
-            SocketAddr::from(([0, 0, 0, 0], 42420)),
+            SocketAddr::from(([0, 0, 0, 0], 80)),
+            SocketAddr::from(([0, 0, 0, 0], 8080)),
             SocketAddr::from(([0, 0, 0, 0], 0))
         ];
 
         let listener = TcpListener::bind(&addresses[..])?;
+        listener.set_nonblocking(false).expect("Failed to set non blocking");
         let port = listener.local_addr()?.port();
 
         return Ok(Self {
@@ -33,51 +30,57 @@ impl DataTransmission for TcpTransmissionListener {
         });
     }
 
-    fn accept(&self) -> Option<Box<dyn Stream>> {
-        if let Ok((tcp_stream, _socket_address)) = self.listener.accept() {
-            return Some(Box::new(tcp_stream));
-        }
+    pub fn start_loop(&self) {
+        let listener = self.listener.try_clone().expect("Failed to clone listener");
 
-        return None;
-    }
-}
+        thread::spawn(move || {
+            loop {
+                let Ok((tcp_stream, _socket_address)) = listener.accept() else {
+                    continue
+                };
 
-
-// ==== Client ====
-impl StreamRead for TcpTransmissionClient {}
-impl StreamWrite for TcpTransmissionClient {}
-impl Stream for TcpTransmissionClient {}
-
-pub struct TcpTransmissionClient {
-    listener: TcpStream
-}
-
-impl TcpTransmissionClient {
-    pub fn connect(address: SocketAddr) -> Result<Self, Box<dyn Error>> {
-        let listener = TcpStream::connect(address)?;
-
-        return Ok(Self {
-            listener
+                println!("initiating receiver");
+                let _ = Connection::initiate_receiver(tcp_stream);
+            }
         });
     }
 
-    pub fn shutdown(&self) -> io::Result<()> {
-        return self.listener.shutdown(Both);
+    // pub fn accept(&self) -> Option<TcpStream> {
+    //     if let Ok((tcp_stream, _socket_address)) = self.listener.accept().await {
+    //         return Some(tcp_stream);
+    //     }
+    //
+    //     return None;
+    // }
+}
+
+pub struct TcpClient {
+    // stream: TcpStream
+}
+
+impl TcpClient {
+    pub fn connect(address: SocketAddr) -> Result<TcpStream, io::Error> {
+        let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(5))?;
+        std_stream.set_nonblocking(false).expect("Failed to set non blocking");
+        // std_stream.set_nonblocking(true)?;
+        // let stream = tokio::net::TcpStream::from_std(std_stream)?;
+
+        return Ok(std_stream);
     }
 }
 
-impl Read for TcpTransmissionClient {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>  {
-        self.listener.read(buf)
-    }
-}
-
-impl Write for TcpTransmissionClient {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.listener.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.listener.flush()
-    }
-}
+// impl Read for TcpClient {
+//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>  {
+//         self.listener.read(buf)
+//     }
+// }
+//
+// impl Write for TcpClient {
+//     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+//         self.listener.write(buf)
+//     }
+//
+//     fn flush(&mut self) -> io::Result<()> {
+//         self.listener.flush()
+//     }
+// }
