@@ -114,7 +114,7 @@ impl NearbyServer {
             println!("Port: {:?}", tcp_server.port);
 
             self.set_tcp_details(TcpConnectionInfo {
-                hostname,
+                hostname: my_local_ip.to_string(),
                 port: tcp_server.port as u32,
             });
 
@@ -174,7 +174,6 @@ impl NearbyServer {
             return Err(ConnectErrors::FailedToOpenTcpStream);
         };
 
-        // let mut buffer = BufStream::new(tcp_client);
         Connection::initiate_sender(&mut tcp_client).await;
 
         return Err(ConnectErrors::Unreachable);

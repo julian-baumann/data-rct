@@ -9,6 +9,7 @@ use rand_core::OsRng;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use protocol::communication::{EncryptionRequest, EncryptionResponse};
+use protocol::prost::encoding::decode_varint;
 use protocol::prost::Message;
 use crate::encryption::generate_iv;
 
@@ -114,30 +115,15 @@ impl Connection {
         };
 
         println!("Writing encryption request with key: {:?}", &encryption_request.public_key);
+        println!("Writing encryption request with length: {:?}", &encryption_request.encoded_len());
         let message = encryption_request.encode_length_delimited_to_vec();
         let _ = stream.write(message.as_slice());
         let _ = stream.flush();
         println!("Done writing");
 
-        let mut writer = BytesMut::new().writer();
-        // std::io::copy(stream, &mut writer).expect("Failed to copy");
+        let mut buffer = BytesMut::zeroed(1);
 
-        loop {
-            match std::io::copy(stream, &mut writer) {
-                Ok(_) => break, // Successfully read the data
-                Err(ref e) if e.kind() == WouldBlock => {
-                    // Operation would block, so wait and try again
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    continue;
-                }
-                Err(e) => return, // Handle other errors
-            }
-        }
-
-        let mut buffer = writer.into_inner();
-
-        // let read = stream.read_buf(&mut buffer).await.expect("Failed to read to buf");
-        // println!("Read {:} bytes", read);
+        Connection::fill_buffer(&mut buffer, stream);
 
         let encryption_response = EncryptionResponse::decode_length_delimited(&mut buffer);
 
@@ -153,31 +139,40 @@ impl Connection {
         println!("Received encryption request. Key: {0:?}, IV: {1:?}", encryption_response.public_key, encryption_response.iv);
     }
 
-    pub fn initiate_receiver<T>(mut stream: T) where T: Read + Write + Clone {
+    fn read_length_delimited<T>(buffer: &mut BytesMut, stream: &mut T) where T : Read + Write {
+        let mut length_delimiter_buf = [0u8; 2];
+        stream.read_exact(&mut length_delimiter_buf).expect("Failed to read_exact");
+
+        let mut length_buf = [0u8; 4];
+        stream.read_exact(&mut length_buf).expect("Failed to read_exact");
+        println!("length buf {:?}", length_buf);
+
+        let msg_length = i32::from_le_bytes(length_buf) as usize;
+
+        println!("Message length: {:}", msg_length);
+
+        println!("Resizing");
+        buffer.resize(msg_length, 0);
+        println!("Reading");
+        stream.read_exact(buffer).expect("Failed to fill buffer");
+        println!("Read everything");
+    }
+
+    fn fill_buffer<T>(buffer: &mut BytesMut, stream: &mut T) where T : Read + Write {
+        let result = stream.read(buffer).expect("Failed to fill buffer");
+        println!("Read {:} into buffer", result);
+    }
+
+    pub fn initiate_receiver<T>(mut stream: T) where T: Read + Write {
         let secret = EphemeralSecret::random_from_rng(OsRng);
         let public_key = PublicKey::from(&secret);
 
         let iv = generate_iv();
-        // let second_stream = stream.try_clone().expect("Cannot clone stream");
 
-        println!("Preparing buffer");
-        let mut buffer = BytesMut::new().writer();
-        // std::io::copy(&mut stream, &mut buffer);
-        loop {
-            match std::io::copy(&mut stream, &mut buffer) {
-                Ok(_) => break, // Successfully read the data
-                Err(ref e) if e.kind() == WouldBlock => {
-                    // Operation would block, so wait and try again
-                    thread::sleep(Duration::from_millis(100));
-                    continue;
-                }
-                Err(e) => return, // Handle other errors
-            }
-        }
+        let mut buffer = BytesMut::zeroed(1);
+        Connection::fill_buffer(&mut buffer, &mut stream);
+
         println!("Prepared buffer");
-
-        println!("into inner");
-        let mut buffer = buffer.into_inner();
 
         println!("Reading EncryptionRequest...");
         let encryption_request = EncryptionRequest::decode_length_delimited(&mut buffer);
