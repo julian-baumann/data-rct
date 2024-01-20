@@ -19,14 +19,14 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import com.julian_baumann.data_rct.Device
-import com.julian_baumann.data_rct.Discovery
-import com.julian_baumann.data_rct.DiscoveryDelegate
-import com.julian_baumann.data_rct.NearbyServer
+import com.julian_baumann.data_rct.*
 import com.julian_baumann.data_rctapp.ui.theme.DataRCTTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
-class MainActivity : ComponentActivity(), DiscoveryDelegate {
+class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDelegate {
     private val devices = mutableStateListOf<Device>()
     private var advertisement: NearbyServer? = null
     private var discovery: Discovery? = null
@@ -70,11 +70,14 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate {
             deviceType = 0
         )
 
-//        advertisement = NearbyServer(baseContext, device)
-//        advertisement?.start()
+        advertisement = NearbyServer(baseContext, device, this)
 
-        discovery = Discovery(baseContext, this)
-        discovery?.startScanning()
+        CoroutineScope(Dispatchers.Main).launch {
+            advertisement?.start()
+        }
+
+//        discovery = Discovery(baseContext, this)
+//        discovery?.startScanning()
     }
 
     override fun deviceAdded(value: Device) {
@@ -88,7 +91,10 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate {
 
     override fun onStop() {
         super.onStop()
-        advertisement?.stop()
+
+        CoroutineScope(Dispatchers.Main).launch {
+            advertisement?.stop()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,6 +108,10 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate {
                 StartView(devices)
             }
         }
+    }
+
+    override fun receivedConnectionRequest(request: ConnectionRequest) {
+        request.accept()
     }
 }
 

@@ -10,8 +10,21 @@ dictionary Device {
 };
 
 [Error]
-enum TransmissionSetupError {
-    "UnableToStartTcpServer"
+interface TransmissionSetupError {
+    UnableToStartTcpServer(string error);
+};
+
+[Error]
+interface ConnectErrors {
+    Unreachable();
+    FailedToGetConnectionDetails();
+    Declined();
+    FailedToGetTcpDetails();
+    FailedToGetSocketAddress();
+    FailedToOpenTcpStream();
+    FailedToEncryptStream(string error);
+    FailedToDetermineFileSize(string error);
+    FailedToGetTransferRequestResponse(string error);
 };
 
 [Error]
@@ -46,6 +59,9 @@ dictionary TcpConnectionInfo {
 };
 
 interface ConnectionRequest {
+    Device get_sender();
+    void accept();
+    void decline();
 };
 
 callback interface NearbyConnectionDelegate {

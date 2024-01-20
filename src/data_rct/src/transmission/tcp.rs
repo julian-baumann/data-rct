@@ -1,19 +1,23 @@
 use std::error::Error;
 use std::{io, thread};
 use std::net::{SocketAddr};
-use std::thread::Thread;
 use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::connection::Connection;
-
+use prost_stream::Stream;
+use protocol::communication::TransferRequest;
+use crate::communication::ReceiverConnection;
+use crate::nearby::{Connection, ConnectionRequest, NearbyConnectionDelegate};
 
 pub struct TcpServer {
     pub port: u16,
-    listener: TcpListener
+    listener: TcpListener,
+    delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>,
+    file_storage: String
 }
 
 impl TcpServer {
-    pub(crate) async fn new() -> Result<TcpServer, Box<dyn Error>> {
+    pub(crate) async fn new(delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>, file_storage: String) -> Result<TcpServer, Box<dyn Error>> {
         let addresses = [
             SocketAddr::from(([0, 0, 0, 0], 80)),
             SocketAddr::from(([0, 0, 0, 0], 8080)),
@@ -26,12 +30,16 @@ impl TcpServer {
 
         return Ok(Self {
             port,
-            listener
+            listener,
+            delegate,
+            file_storage
         });
     }
 
     pub fn start_loop(&self) {
         let listener = self.listener.try_clone().expect("Failed to clone listener");
+        let delegate = self.delegate.clone();
+        let file_storage = self.file_storage.clone();
 
         thread::spawn(move || {
             loop {
@@ -40,22 +48,39 @@ impl TcpServer {
                 };
 
                 println!("initiating receiver");
-                let _ = Connection::initiate_receiver(tcp_stream);
+
+                let mut encrypted_stream = match ReceiverConnection::initiate_receiver(tcp_stream) {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        println!("Encryption error {:}", error);
+                        continue;
+                    }
+                };
+
+                let mut prost_stream = Stream::new(&mut encrypted_stream);
+                let transfer_request = match prost_stream.recv::<TransferRequest>() {
+                    Ok(message) => message,
+                    Err(error) => {
+                        println!("Error {:}", error);
+                        continue;
+                    }
+                };
+
+                println!("Received Transfer Request from {:}", transfer_request.clone().device.unwrap().name);
+
+                let connection_request = ConnectionRequest::new(
+                    transfer_request,
+                    Connection::Tcp(encrypted_stream),
+                    file_storage.clone()
+                );
+
+                delegate.lock().expect("Failed to lock").received_connection_request(Arc::new(connection_request));
             }
         });
     }
-
-    // pub fn accept(&self) -> Option<TcpStream> {
-    //     if let Ok((tcp_stream, _socket_address)) = self.listener.accept().await {
-    //         return Some(tcp_stream);
-    //     }
-    //
-    //     return None;
-    // }
 }
 
 pub struct TcpClient {
-    // stream: TcpStream
 }
 
 impl TcpClient {
@@ -68,19 +93,3 @@ impl TcpClient {
         return Ok(std_stream);
     }
 }
-
-// impl Read for TcpClient {
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>  {
-//         self.listener.read(buf)
-//     }
-// }
-//
-// impl Write for TcpClient {
-//     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-//         self.listener.write(buf)
-//     }
-//
-//     fn flush(&mut self) -> io::Result<()> {
-//         self.listener.flush()
-//     }
-// }

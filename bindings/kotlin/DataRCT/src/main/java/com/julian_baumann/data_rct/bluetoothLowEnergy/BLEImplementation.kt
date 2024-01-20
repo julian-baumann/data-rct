@@ -12,6 +12,9 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleServerImplementationDelegate
 import com.julian_baumann.data_rct.InternalNearbyServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 
@@ -46,14 +49,16 @@ internal class BLEImplementation(private val context: Context, private val inter
                 throw BlePermissionNotGrantedException()
             }
 
-            val data = internalNearbyServer.getAdvertisementData()
+            CoroutineScope(Dispatchers.Main).launch {
+                val data = internalNearbyServer.getAdvertisementData()
 
-            bluetoothGattServer?.sendResponse(device,
-                requestId,
-                BluetoothGatt.GATT_SUCCESS,
-                0,
-                data
-            )
+                bluetoothGattServer?.sendResponse(device,
+                    requestId,
+                    BluetoothGatt.GATT_SUCCESS,
+                    0,
+                    data
+                )
+            }
         }
     }
 

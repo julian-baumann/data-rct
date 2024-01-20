@@ -29,29 +29,35 @@ pub fn stream_encryption() {
     let nonce = generate_iv();
 
     let memory_stream = MemoryStream::new();
-    let mut encrypted_stream = EncryptedStream::new(key as [u8; 32], nonce as [u8; 24], Box::new(memory_stream));
+    let mut encrypted_stream = EncryptedStream::new(key, nonce, memory_stream);
 
     let write_data = &vec![1, 2, 3];
 
     let written_bytes = encrypted_stream.write(write_data)
         .expect("Something went wrong, while trying to write to EncryptedStream");
 
-    assert!(written_bytes > 0);
+    assert_eq!(written_bytes, 3);
 
-    encrypted_stream.raw_stream.lock().unwrap().downcast_mut::<MemoryStream>().unwrap().set_position(0);
-    encrypted_stream.cipher.lock().unwrap().seek(0);
+    encrypted_stream.raw_stream.set_position(0);
+    encrypted_stream.cipher.seek(0);
 
     let mut encrypted_gibberish = Vec::new();
-    encrypted_stream.raw_stream.lock().unwrap().read_to_end(&mut encrypted_gibberish)
+    encrypted_stream.raw_stream.read_to_end(&mut encrypted_gibberish)
         .expect("Error reading memory_stream");
 
     assert_ne!(write_data, &encrypted_gibberish);
 
-    encrypted_stream.raw_stream.lock().unwrap().downcast_mut::<MemoryStream>().unwrap().set_position(0);
-    encrypted_stream.cipher.lock().unwrap().seek(0);
+    let write_data = &vec![1, 2, 3];
 
-    let mut decrypted = Vec::new();
-    encrypted_stream.read_to_end(&mut decrypted)
+    encrypted_stream.write(write_data)
+        .expect("Something went wrong, while trying to write to EncryptedStream");
+
+    encrypted_stream.raw_stream.set_position(0);
+    encrypted_stream.cipher.seek(0);
+
+
+    let mut decrypted = [0u8; 3];
+    encrypted_stream.read(&mut decrypted)
         .expect("Error decrypting memory_stream");
 
     assert_eq!(write_data, &decrypted);
@@ -76,16 +82,16 @@ pub fn large_stream_encryption() {
         .expect("Something went wrong, while trying to write to EncryptedStream");
 
     assert!(written_bytes > 0);
-    encrypted_stream.raw_stream.lock().unwrap().downcast_mut::<MemoryStream>().unwrap().set_position(0);
-    encrypted_stream.cipher.lock().unwrap().seek(0);
+    encrypted_stream.raw_stream.set_position(0);
+    encrypted_stream.cipher.seek(0);
 
     let mut encrypted_gibberish = Vec::new();
-    encrypted_stream.raw_stream.lock().unwrap().read_to_end(&mut encrypted_gibberish)
+    encrypted_stream.raw_stream.read_to_end(&mut encrypted_gibberish)
         .expect("Error reading memory_stream");
 
     assert_ne!(write_data, &encrypted_gibberish);
-    encrypted_stream.raw_stream.lock().unwrap().downcast_mut::<MemoryStream>().unwrap().set_position(0);
-    encrypted_stream.cipher.lock().unwrap().seek(0);
+    encrypted_stream.raw_stream.set_position(0);
+    encrypted_stream.cipher.seek(0);
 
     let mut decrypted_buffer: [u8; 100000] = [0; 100000];
     let read_bytes = encrypted_stream.read(&mut decrypted_buffer)

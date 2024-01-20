@@ -29,32 +29,23 @@ message MessageHeader {
 
 message TransferRequest {
     discovery.Device device = 1;
-    CommunicationIntents intent = 2;
 
-    enum CommunicationIntents {
-        FILE_TRANSFER = 0;
-        CLIPBOARD_TRANSFER = 1;
+    oneof intent {
+        FileTransferIntent file_transfer = 2;
+        ClipboardTransferIntent clipboard = 3;
     }
-}
-
-message TransferRequestResponse {
-    Answers answer = 1;
-
-    enum Answers {
-        DENY = 0;
-        ACCEPT = 1;
-    }
-}
-
-message SharedFileInfo {
-    string file_name = 1;
-    int64 file_size = 2;
 }
 
 message FileTransferIntent {
-    repeated SharedFileInfo file_info = 1;
+    optional string file_name = 1;
+    uint64 file_size = 2;
+    bool multiple = 3;
 }
 
 message ClipboardTransferIntent {
-    repeated string clipboard_content = 1;
+    string clipboard_content = 1;
+}
+
+message TransferRequestResponse {
+    bool accepted = 1;
 }

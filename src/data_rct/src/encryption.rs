@@ -2,11 +2,9 @@ use std::{io};
 use std::io::{Error, Read, Write};
 use std::io::ErrorKind::Other;
 use std::iter::repeat;
-use std::sync::{Arc, Mutex};
 use rand_core::{OsRng};
 use chacha20::{XChaCha20};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
-use crate::stream::{Stream, StreamRead, StreamWrite};
 
 pub fn generate_key() -> [u8; 32] {
     let key = XChaCha20::generate_key(&mut OsRng);
@@ -20,76 +18,76 @@ pub fn generate_iv() -> [u8; 24] {
     return nonce.into();
 }
 
-#[derive(Clone)]
-pub struct EncryptedStream {
-    pub cipher: Arc<Mutex<XChaCha20>>,
-    pub raw_stream: Arc<Mutex<Box<dyn Stream>>>
+pub struct EncryptedStream<TStream> where TStream : Read + Write {
+    pub cipher: XChaCha20,
+    pub raw_stream: TStream
 }
 
-impl StreamRead for EncryptedStream {}
-impl StreamWrite for EncryptedStream {}
-
-impl<'a> EncryptedStream {
-    pub fn new(key: [u8; 32], iv: [u8; 24], stream: Box<dyn Stream>) -> Self {
+impl<TStream> EncryptedStream<TStream> where TStream : Read + Write {
+    pub fn new(key: [u8; 32], iv: [u8; 24], stream: TStream) -> Self {
         let cipher = XChaCha20::new(&key.into(), &iv.into());
 
         Self {
-            cipher: Arc::new(Mutex::new(cipher)),
-            raw_stream: Arc::new(Mutex::new(stream))
+            cipher,
+            raw_stream: stream
         }
     }
 
-    pub fn read_immutable(&self, read_buffer: &mut [u8]) -> io::Result<usize> {
+    // fn read_available(&mut self) -> io::Result<usize>  {
+    //     let mut total_bytes_read: usize = 0;
+    //
+    //     loop {
+    //         let mut buffer = [0; BUFFER_SIZE];
+    //         let read_bytes = self.raw_stream.read(&mut buffer);
+    //
+    //         let Ok(read_bytes) = read_bytes else {
+    //             return Err(read_bytes.unwrap_err());
+    //         };
+    //
+    //         total_bytes_read += read_bytes;
+    //
+    //         self.encrypted_read_buffer.put(buffer.as_slice());
+    //
+    //         if read_bytes < BUFFER_SIZE {
+    //             break;
+    //         }
+    //     }
+    //
+    //     return Ok(total_bytes_read);
+    // }
+}
+
+impl<TStream> Read for EncryptedStream<TStream> where TStream : Read + Write {
+    fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(read_buffer.len()).collect();
-        let read_bytes = self.raw_stream.lock().unwrap().read(&mut buffer);
+        let read_bytes = self.raw_stream.read(&mut buffer).expect("Failed to read from encrypted buffer");
 
-        if let Ok(read_bytes) = read_bytes {
-            if read_bytes == 0 {
-                return Ok(read_bytes);
-            }
-
-            let sized_buffer = &buffer[..read_bytes];
-
-            let decrypted_message_part = self.cipher.lock().unwrap().apply_keystream_b2b(sized_buffer, &mut read_buffer[..read_bytes]);
-
-            return if let Err(error) = decrypted_message_part {
-                Err(Error::new(Other, format!("{}", error.to_string())))
-            } else {
-                Ok(read_bytes)
-            }
+        if read_bytes <= 0 {
+            return Ok(0);
         }
 
-        return Ok(0);
-    }
+        match self.cipher.apply_keystream_b2b(&buffer[..read_bytes], &mut read_buffer[..read_bytes]) {
+            Ok(_) => {}
+            Err(error) => return Err(Error::new(Other, error.to_string()))
+        };
 
-    pub fn write_immutable(&self, write_buffer: &[u8]) -> io::Result<usize> {
+        return Ok(read_bytes);
+    }
+}
+
+impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
+    fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
-        let ciphertext = self.cipher.lock().unwrap().apply_keystream_b2b(write_buffer, &mut buffer);
+        let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);
 
         if let Ok(()) = ciphertext {
-            return self.raw_stream.lock().unwrap().write(&buffer);
+            return self.raw_stream.write(&buffer);
         }
 
         return Ok(0);
-    }
-
-    pub fn flush_immutable(&self) -> io::Result<()> {
-        return self.raw_stream.lock().unwrap().flush();
-    }
-}
-
-impl<'a> Read for EncryptedStream {
-    fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
-        return self.read_immutable(read_buffer);
-    }
-}
-
-impl Write for EncryptedStream {
-    fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
-        return self.write_immutable(write_buffer);
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        return self.flush_immutable();
+        return self.raw_stream.flush();
     }
 }

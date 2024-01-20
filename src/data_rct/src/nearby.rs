@@ -1,16 +1,26 @@
 use std::fmt::Debug;
-use std::net::{ToSocketAddrs};
-use std::sync::Arc;
-use futures::channel::oneshot;
+use std::fs;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::net::ToSocketAddrs;
+use std::path::Path;
+use std::sync::{Arc, Mutex, MutexGuard};
+
 use gethostname::gethostname;
-use local_ip_address::local_ip;
+use local_ip_address::{list_afinet_netifas, local_ip};
+use prost_stream::Stream;
 use thiserror::Error;
-use tokio::io::{BufStream};
+
+use protocol::communication::{ClipboardTransferIntent, FileTransferIntent, TransferRequest, TransferRequestResponse};
+use protocol::communication::transfer_request::Intent;
 use protocol::discovery::{BluetoothLeConnectionInfo, Device, DeviceConnectionInfo, TcpConnectionInfo};
-use crate::connection::{Connection, NativeStream};
+
+use crate::communication::{NativeStream, SenderConnection};
+use crate::convert_os_str;
 use crate::discovery::Discovery;
-use crate::transmission::{DataTransmission, TransmissionSetupError};
+use crate::encryption::EncryptedStream;
 use crate::transmission::tcp::{TcpClient, TcpServer};
+use crate::transmission::TransmissionSetupError;
 
 pub trait BleServerImplementationDelegate: Send + Sync + Debug {
     fn start_server(&self);
@@ -22,6 +32,88 @@ pub trait L2CAPClientDelegate: Send + Sync + Debug {
 }
 
 pub struct ConnectionRequest {
+    transfer_request: TransferRequest,
+    connection: Arc<Mutex<Connection>>,
+    file_storage: String,
+}
+
+impl ConnectionRequest {
+    pub fn new(transfer_request: TransferRequest, connection: Connection, file_storage: String) -> Self {
+        return Self {
+            transfer_request,
+            connection: Arc::new(Mutex::new(connection)),
+            file_storage
+        }
+    }
+
+    pub fn get_sender(&self) -> Device {
+        return self.transfer_request.clone().device.expect("Device information missing");
+    }
+
+    pub fn get_intent(&self) -> Intent {
+        return self.transfer_request.clone().intent.expect("Intent information missing");
+    }
+
+    pub fn decline(&self) {
+        let mut connection_guard = self.connection.lock().unwrap(); // Handle the lock error appropriately
+        let mut stream = match &mut *connection_guard {
+            Connection::Tcp(encrypted_stream) => Stream::new(encrypted_stream),
+        };
+
+        let _ = stream.send(&TransferRequestResponse {
+            accepted: false
+        });
+    }
+
+    pub fn accept(&self) {
+        let mut connection_guard = self.connection.lock().unwrap();
+
+        let mut stream = match &mut *connection_guard {
+            Connection::Tcp(encrypted_stream) => Stream::new(encrypted_stream),
+        };
+
+        let _ = stream.send(&TransferRequestResponse {
+            accepted: true
+        });
+
+        match self.get_intent() {
+            Intent::FileTransfer(file_transfer) => self.handle_file(connection_guard, file_transfer),
+            Intent::Clipboard(clipboard) => self.handle_clipboard(clipboard)
+        };
+    }
+
+    fn handle_clipboard(&self, clipboard_transfer_intent: ClipboardTransferIntent) {
+        panic!("Not implemented yet");
+    }
+
+    fn handle_file(&self, mut connection_guard: MutexGuard<Connection>, file_transfer: FileTransferIntent) {
+        let path = Path::new(&self.file_storage);
+        let path = path.join(&file_transfer.file_name.unwrap_or_else(|| "temp.zip".to_string()));
+        let path = path.into_os_string();
+
+        println!("Creating file at {:?}", path);
+        let mut file = File::create(path).expect("Failed to create file");
+
+        let mut buffer = [0; 1024];
+
+        println!("Locking connection");
+        let stream = match &mut *connection_guard {
+            Connection::Tcp(encrypted_stream) => encrypted_stream,
+        };
+
+        println!("Locked");
+
+        while let Ok(read_size) = stream.read(&mut buffer) {
+            if read_size == 0 {
+                break;
+            }
+
+            file.write_all(&buffer[..read_size])
+                .expect("Failed to write file to disk");
+        }
+
+        println!("written everything");
+    }
 }
 
 pub trait NearbyConnectionDelegate: Send + Sync + Debug {
@@ -47,6 +139,19 @@ pub enum ConnectErrors {
 
     #[error("Failed to open TCP stream")]
     FailedToOpenTcpStream,
+
+    #[error("Failed to encrypt stream: {error}")]
+    FailedToEncryptStream { error: String },
+
+    #[error("Failed to determine file size: {error}")]
+    FailedToDetermineFileSize { error: String },
+
+    #[error("Failed to get transfer request response: {error}")]
+    FailedToGetTransferRequestResponse { error: String },
+}
+
+pub enum Connection {
+    Tcp(EncryptedStream<std::net::TcpStream>)
 }
 
 pub struct NearbyServer {
@@ -54,15 +159,15 @@ pub struct NearbyServer {
     tcp_server: Option<TcpServer>,
     ble_server_implementation: Option<Box<dyn BleServerImplementationDelegate>>,
     ble_l2cap_client: Option<Box<dyn L2CAPClientDelegate>>,
-    nearby_connection_delegate: Box<dyn NearbyConnectionDelegate>,
-    connection_oneshot: Option<oneshot::Sender<Arc<NativeStream>>>,
-    pub advertise: bool
+    nearby_connection_delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>,
+    pub advertise: bool,
+    file_storage: String
 }
 
 impl NearbyServer {
-    pub fn new(my_device: Device, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+    pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
         let device_connection_info = DeviceConnectionInfo {
-            device: Some(my_device),
+            device: Some(my_device.clone()),
             ble: None,
             tcp: None
         };
@@ -72,9 +177,9 @@ impl NearbyServer {
             tcp_server: None,
             ble_server_implementation: None,
             ble_l2cap_client: None,
-            nearby_connection_delegate: delegate,
-            connection_oneshot: None,
-            advertise: false
+            nearby_connection_delegate: Arc::new(Mutex::new(delegate)),
+            advertise: false,
+            file_storage
         };
     }
 
@@ -100,13 +205,14 @@ impl NearbyServer {
 
     pub async fn start(&mut self) -> Result<(), TransmissionSetupError> {
         if self.tcp_server.is_none() {
-            let tcp_server = match TcpServer::new().await {
+            let tcp_server = match TcpServer::new(self.nearby_connection_delegate.clone(), self.file_storage.clone()).await {
                 Ok(result) => result,
-                Err(error) => return Err(TransmissionSetupError::UnableToStartTcpServer(error.to_string()))
+                Err(error) => return Err(TransmissionSetupError::UnableToStartTcpServer { error: error.to_string() })
             };
 
             tcp_server.start_loop();
             let hostname = gethostname().into_string().expect("Failed to convert hostname to string");
+
             let my_local_ip = local_ip().unwrap();
 
             println!("Hostname: {:?}", hostname);
@@ -130,22 +236,7 @@ impl NearbyServer {
         return Ok(());
     }
 
-    // pub async fn accept(&self) {
-    //     let Some(tcp_server) = &self.tcp_server else {
-    //         return;
-    //     };
-    //
-    //     println!("accept!");
-    //     let Some(mut tcp_stream) = tcp_server.accept().await else {
-    //         println!("accept error");
-    //         return;
-    //     };
-    //
-    //     println!("initiating receiver");
-    //     let _ = Connection::initiate_receiver(&mut tcp_stream);
-    // }
-
-    pub async fn connect(&self, device: Device) -> Result<Connection, ConnectErrors> {
+    async fn connect(&self, device: Device) -> Result<Connection, ConnectErrors> {
         let Some(connection_details) = Discovery::get_connection_details(device) else {
             return Err(ConnectErrors::FailedToGetConnectionDetails);
         };
@@ -169,14 +260,70 @@ impl NearbyServer {
 
         let tcp_stream = TcpClient::connect(socket_address);
 
-        let Ok(mut tcp_client) = tcp_stream else {
+        let Ok(tcp_client) = tcp_stream else {
             println!("{:?}", tcp_stream.unwrap_err());
             return Err(ConnectErrors::FailedToOpenTcpStream);
         };
 
-        Connection::initiate_sender(&mut tcp_client).await;
+        let encrypted_stream = match SenderConnection::initiate_sender(tcp_client).await {
+            Ok(stream) => stream,
+            Err(error) => return Err(ConnectErrors::FailedToEncryptStream { error: error.to_string() })
+        };
 
-        return Err(ConnectErrors::Unreachable);
+        return Ok(Connection::Tcp(encrypted_stream));
+    }
+
+    pub async fn send_file(&self, receiver: Device, file_path: String) -> Result<(), ConnectErrors> {
+        let connection = match self.connect(receiver).await {
+            Ok(connection) => connection,
+            Err(error) => return Err(error)
+        };
+
+        let mut encrypted_stream = match connection {
+            Connection::Tcp(encrypted_stream) => encrypted_stream
+        };
+
+        let mut proto_stream = Stream::new(&mut encrypted_stream);
+
+        let path = Path::new(&file_path);
+        let filename = path.file_name().expect("Failed to get file name");
+        let metadata = fs::metadata(&file_path).expect("Failed to get metadata for file");
+        let file_size = metadata.len();
+
+        let transfer_request = TransferRequest {
+            device: self.device_connection_info.device.clone(),
+            intent: Some(Intent::FileTransfer(FileTransferIntent {
+                file_name: convert_os_str(filename),
+                file_size,
+                multiple: false
+            }))
+        };
+
+        let _ = proto_stream.send(&transfer_request);
+
+        let response = match proto_stream.recv::<TransferRequestResponse>() {
+            Ok(message) => message,
+            Err(error) => return Err(ConnectErrors::FailedToGetTransferRequestResponse { error: error.to_string() })
+        };
+
+        if !response.accepted {
+            return Err(ConnectErrors::Declined);
+        }
+
+        let mut file = File::open(file_path).expect("Failed to open file");
+        let mut buffer = [0; 1024];
+
+        // Read file and write it to the stream
+        while let Ok(read_size) = file.read(&mut buffer) {
+            if read_size == 0 {
+                break;
+            }
+
+            encrypted_stream.write_all(&buffer[..read_size])
+                .expect("Failed to write file buffer");
+        }
+
+        return Ok(());
     }
 
     pub fn get_tcp_port(&self) -> Option<u16> {

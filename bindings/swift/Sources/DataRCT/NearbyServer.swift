@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreBluetooth
+import PhotosUI
 
 public enum BluetoothState: Int {
     case unknown = 0
@@ -47,8 +48,8 @@ public class NearbyServer {
     private let bleServer: BLEServer
     public var state: BluetoothState { get { bleServer.state } }
     
-    public init(myDevice: Device, delegate: NearbyServerDelegate) {
-        internalHandler = InternalNearbyServer(myDevice: myDevice, delegate: delegate)
+    public init(myDevice: Device, storage: String, delegate: NearbyServerDelegate) {
+        internalHandler = InternalNearbyServer(myDevice: myDevice, fileStorage: storage, delegate: delegate)
         bleServer = BLEServer(handler: internalHandler, delegate: delegate)
 
         internalHandler.addBleImplementation(bleImplementation: bleServer)
@@ -64,8 +65,10 @@ public class NearbyServer {
         await internalHandler.start()
     }
     
-    public func connect(_ device: Device) async {
-        await internalHandler.connect(device: device)
+    @available(macOS 13.0, *)
+    @available(iOS 14.0, *)
+    public func sendFile(to device: Device, url: String) async throws {
+        try await internalHandler.sendFile(receiver: device, filePath: url)
     }
     
     public func stop() async throws {

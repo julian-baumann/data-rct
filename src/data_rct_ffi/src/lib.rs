@@ -1,17 +1,17 @@
 use std::io;
 use std::sync::{Arc, RwLock};
+
 use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID};
+pub use data_rct::communication::{NativeStream, NativeStreamDelegate};
 pub use data_rct::Device;
-pub use data_rct::encryption::{EncryptedStream};
-pub use data_rct::connection::{NativeStream, NativeStreamDelegate};
-use data_rct::connection::{Connection};
-pub use data_rct::stream::{IncomingErrors};
+pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery, DiscoverySetupError};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
-pub use data_rct::discovery::{Discovery, DiscoverySetupError, BleDiscoveryImplementationDelegate};
-pub use data_rct::nearby::{BleServerImplementationDelegate, NearbyServer, ConnectionRequest, L2CAPClientDelegate, NearbyConnectionDelegate, ConnectErrors};
-use data_rct::protocol::discovery::device_discovery_message::Content;
+pub use data_rct::encryption::EncryptedStream;
+pub use data_rct::nearby::{BleServerImplementationDelegate, ConnectErrors, ConnectionRequest, L2CAPClientDelegate, NearbyConnectionDelegate, NearbyServer};
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
+use data_rct::protocol::discovery::device_discovery_message::Content;
 use data_rct::protocol::prost::Message;
+pub use data_rct::stream::IncomingErrors;
 pub use data_rct::transmission::TransmissionSetupError;
 
 #[derive(Debug, thiserror::Error)]
@@ -43,8 +43,8 @@ pub struct InternalNearbyServer {
 impl InternalNearbyServer {
 
     #[uniffi::constructor]
-    pub fn new(my_device: Device, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
-        let server = NearbyServer::new(my_device, delegate);
+    pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+        let server = NearbyServer::new(my_device, file_storage, delegate);
         let server = Arc::new(tokio::sync::RwLock::new(server));
 
         Self {
@@ -105,13 +105,9 @@ impl InternalNearbyServer {
         self.handler.write().await.start().await.expect("Failed to start server");
     }
 
-    pub async fn connect(&self, device: Device) {
-        self.handler.read().await.connect(device).await.expect("Failed to connect");
+    pub async fn send_file(&self, receiver: Device, file_path: String) -> Result<(), ConnectErrors> {
+        return self.handler.read().await.send_file(receiver, file_path).await;
     }
-
-    // pub async fn accept(&self) {
-    //     return self.handler.read().await.accept().await;
-    // }
 
     pub async fn stop(&self) {
         println!("Stopping...");
@@ -152,22 +148,22 @@ impl InternalDiscovery {
         self.handler.write().expect("Failed to lock handler").parse_discovery_message(data, ble_uuid);
     }
 }
-
-trait UniffiReadWrite {
-    fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
-    fn flush_bytes(&self) -> Result<(), ExternalIOError>;
-}
-
-impl UniffiReadWrite for EncryptedStream {
-    fn write_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError> {
-        return Ok(
-            self.write_immutable(buffer.as_slice())? as u64
-        );
-    }
-
-    fn flush_bytes(&self) -> Result<(), ExternalIOError> {
-        return Ok(self.flush_immutable()?);
-    }
-}
+//
+// trait UniffiReadWrite {
+//     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
+//     fn flush_bytes(&self) -> Result<(), ExternalIOError>;
+// }
+//
+// impl UniffiReadWrite for EncryptedStream {
+//     fn write_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError> {
+//         return Ok(
+//             self.write_immutable(buffer.as_slice())? as u64
+//         );
+//     }
+//
+//     fn flush_bytes(&self) -> Result<(), ExternalIOError> {
+//         return Ok(self.flush_immutable()?);
+//     }
+// }
 
 uniffi::include_scaffolding!("data_rct");
