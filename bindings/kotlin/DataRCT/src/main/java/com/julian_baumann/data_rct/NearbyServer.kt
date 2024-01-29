@@ -16,8 +16,8 @@ class NearbyServer(context: Context, myDevice: Device, delegate: NearbyConnectio
         internal.start()
     }
 
-    suspend fun sendFile(receiver: Device, fileUrl: String) {
-        internal.sendFile(receiver, fileUrl)
+    suspend fun sendFile(receiver: Device, fileUrl: String, progressDelegate: ProgressDelegate?) {
+        internal.sendFile(receiver, fileUrl, progressDelegate)
     }
 
     suspend fun stop() {

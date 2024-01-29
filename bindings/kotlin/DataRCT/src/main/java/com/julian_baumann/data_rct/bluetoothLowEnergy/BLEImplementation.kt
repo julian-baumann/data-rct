@@ -115,7 +115,7 @@ internal class BLEImplementation(private val context: Context, private val inter
         bluetoothLeAdvertiser?.let {
 
             val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setConnectable(true)
                 .setTimeout(0)
                 .build()

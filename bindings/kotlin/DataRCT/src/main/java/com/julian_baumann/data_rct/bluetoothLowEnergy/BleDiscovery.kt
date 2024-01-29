@@ -55,7 +55,7 @@ class BluetoothGattCallbackTest(private val internal: InternalDiscovery, private
         value: ByteArray
     ) {
         super.onCharacteristicChanged(gatt, characteristic, value)
-        internal.parseDiscoveryMessage(value)
+        internal.parseDiscoveryMessage(value, gatt.device.address)
     }
 
     // Still needed for older Android versions (< 13)
@@ -84,7 +84,7 @@ class BluetoothGattCallbackTest(private val internal: InternalDiscovery, private
 
     private fun handleCharacteristicData(data: ByteArray, status: Int, gatt: BluetoothGatt) {
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            internal.parseDiscoveryMessage(data)
+            internal.parseDiscoveryMessage(data, gatt.device.address)
             gatt.disconnect()
 //            isBusy = false
 //            discoveredPeripherals.remove(gatt.device)

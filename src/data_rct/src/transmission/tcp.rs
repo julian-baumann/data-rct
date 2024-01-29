@@ -6,8 +6,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use prost_stream::Stream;
 use protocol::communication::TransferRequest;
-use crate::communication::ReceiverConnection;
-use crate::nearby::{Connection, ConnectionRequest, NearbyConnectionDelegate};
+use crate::communication::{initiate_receiver_communication};
+use crate::connection_request::ConnectionRequest;
+use crate::nearby::{NearbyConnectionDelegate};
+use crate::stream::Close;
 
 pub struct TcpServer {
     pub port: u16,
@@ -48,31 +50,13 @@ impl TcpServer {
                 };
 
                 println!("initiating receiver");
-
-                let mut encrypted_stream = match ReceiverConnection::initiate_receiver(tcp_stream) {
-                    Ok(stream) => stream,
+                let connection_request = match initiate_receiver_communication(tcp_stream, file_storage.clone()) {
+                    Ok(request) => request,
                     Err(error) => {
                         println!("Encryption error {:}", error);
                         continue;
                     }
                 };
-
-                let mut prost_stream = Stream::new(&mut encrypted_stream);
-                let transfer_request = match prost_stream.recv::<TransferRequest>() {
-                    Ok(message) => message,
-                    Err(error) => {
-                        println!("Error {:}", error);
-                        continue;
-                    }
-                };
-
-                println!("Received Transfer Request from {:}", transfer_request.clone().device.unwrap().name);
-
-                let connection_request = ConnectionRequest::new(
-                    transfer_request,
-                    Connection::Tcp(encrypted_stream),
-                    file_storage.clone()
-                );
 
                 delegate.lock().expect("Failed to lock").received_connection_request(Arc::new(connection_request));
             }
@@ -91,5 +75,11 @@ impl TcpClient {
         // let stream = tokio::net::TcpStream::from_std(std_stream)?;
 
         return Ok(std_stream);
+    }
+}
+
+impl Close for TcpStream {
+    fn close(self) {
+        // Do nothing. TCPStream closes automatically.
     }
 }

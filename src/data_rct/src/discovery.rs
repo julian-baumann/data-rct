@@ -6,15 +6,7 @@ use protocol::{DiscoveryDelegate};
 use protocol::discovery::{DeviceConnectionInfo, DeviceDiscoveryMessage, Device};
 use protocol::discovery::device_discovery_message::Content;
 use protocol::prost::Message;
-
-#[derive(Error, Debug)]
-pub enum DiscoverySetupError {
-    #[error("Unable to setup UDP Discovery")]
-    UnableToSetupUdp,
-
-    #[error("Unable to setup MDNS-SD Discovery")]
-    UnableToSetupMdns
-}
+use crate::errors::DiscoverySetupError;
 
 pub trait BleDiscoveryImplementationDelegate: Send + Sync + Debug {
     fn start_scanning(&self);

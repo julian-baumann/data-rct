@@ -1,13 +1,15 @@
 use std::io;
 use std::sync::{Arc, RwLock};
 
-use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID};
-pub use data_rct::communication::{NativeStream, NativeStreamDelegate};
+pub use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID, ClipboardTransferIntent};
+pub use data_rct::connection_request::ConnectionRequest;
 pub use data_rct::Device;
 pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery, DiscoverySetupError};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
 pub use data_rct::encryption::EncryptedStream;
-pub use data_rct::nearby::{BleServerImplementationDelegate, ConnectErrors, ConnectionRequest, L2CAPClientDelegate, NearbyConnectionDelegate, NearbyServer};
+pub use data_rct::nearby::{SendProgressState, ProgressDelegate, BleServerImplementationDelegate, ConnectErrors, L2CAPDelegate, NearbyConnectionDelegate, NearbyServer};
+pub use data_rct::nearby::ConnectionIntentType;
+pub use data_rct::protocol::communication::FileTransferIntent;
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
 use data_rct::protocol::discovery::device_discovery_message::Content;
 use data_rct::protocol::prost::Message;
@@ -52,7 +54,7 @@ impl InternalNearbyServer {
         }
     }
 
-    pub fn add_l2cap_client(&self, delegate: Box<dyn L2CAPClientDelegate>) {
+    pub fn add_l2cap_client(&self, delegate: Box<dyn L2CAPDelegate>) {
         self.handler.blocking_write().add_l2cap_client(delegate);
     }
 
@@ -105,8 +107,8 @@ impl InternalNearbyServer {
         self.handler.write().await.start().await.expect("Failed to start server");
     }
 
-    pub async fn send_file(&self, receiver: Device, file_path: String) -> Result<(), ConnectErrors> {
-        return self.handler.read().await.send_file(receiver, file_path).await;
+    pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn ProgressDelegate>>) -> Result<(), ConnectErrors> {
+        return self.handler.read().await.send_file(receiver, file_path, progress_delegate).await;
     }
 
     pub async fn stop(&self) {

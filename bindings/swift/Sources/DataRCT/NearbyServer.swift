@@ -39,6 +39,17 @@ public enum BluetoothState: Int {
     }
 }
 
+public enum DeviceType: Int32 {
+    case unknown
+    case mobile
+    case tablet
+    case desktop
+    case tv
+    case car
+    case watch
+    case embedded
+}
+
 public protocol NearbyServerDelegate: NearbyConnectionDelegate {
     func nearbyServerDidUpdateState(state: BluetoothState)
 }
@@ -67,8 +78,8 @@ public class NearbyServer {
     
     @available(macOS 13.0, *)
     @available(iOS 14.0, *)
-    public func sendFile(to device: Device, url: String) async throws {
-        try await internalHandler.sendFile(receiver: device, filePath: url)
+    public func sendFile(to device: Device, url: String, progress: ProgressDelegate?) async throws {
+        try await internalHandler.sendFile(receiver: device, filePath: url, progressDelegate: progress)
     }
     
     public func stop() async throws {

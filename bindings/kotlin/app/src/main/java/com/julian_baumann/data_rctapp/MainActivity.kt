@@ -1,35 +1,39 @@
 package com.julian_baumann.data_rctapp
 
 import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import com.julian_baumann.data_rct.*
 import com.julian_baumann.data_rctapp.ui.theme.DataRCTTheme
+import com.julian_baumann.data_rctapp.views.DeviceList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
+import kotlin.math.log10
+import kotlin.math.pow
+
 
 class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDelegate {
     private val devices = mutableStateListOf<Device>()
-    private var advertisement: NearbyServer? = null
+    private var nearbyServer: NearbyServer? = null
     private var discovery: Discovery? = null
+    private var currentConnectionRequest: ConnectionRequest? = null
+    private var showConnectionRequest by mutableStateOf(false)
 
     private var bluetoothConnectPermissionGranted = false
     private var bluetoothAdvertisePermissionGranted = false
@@ -70,14 +74,14 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
             deviceType = 0
         )
 
-        advertisement = NearbyServer(baseContext, device, this)
+        val test = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        println(test)
+
+        nearbyServer = NearbyServer(baseContext, device, this)
 
         CoroutineScope(Dispatchers.Main).launch {
-            advertisement?.start()
+            nearbyServer?.start()
         }
-
-//        discovery = Discovery(baseContext, this)
-//        discovery?.startScanning()
     }
 
     override fun deviceAdded(value: Device) {
@@ -93,10 +97,27 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
         super.onStop()
 
         CoroutineScope(Dispatchers.Main).launch {
-            advertisement?.stop()
+            nearbyServer?.stop()
         }
     }
 
+    override fun receivedConnectionRequest(request: ConnectionRequest) {
+        currentConnectionRequest = request
+        showConnectionRequest = true
+    }
+
+    private fun toHumanReadableSize(bytes: ULong?): String {
+        if (bytes == 0UL || bytes == null) {
+            return "0 B"
+        }
+
+        val units = arrayOf("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
+        val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
+
+        return String.format("%.2f %s", bytes.toDouble() / 1024.0.pow(digitGroups.toDouble()), units[digitGroups])
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -106,12 +127,52 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
             DataRCTTheme {
                 // A surface container using the 'background' color from the theme
                 StartView(devices)
+
+                if (showConnectionRequest && currentConnectionRequest != null) {
+                    AlertDialog(
+                        title = {
+                            Text(text = "${currentConnectionRequest?.getSender()?.name} wants to send you a file")
+                        },
+                        text = {
+                            Text(text = "${currentConnectionRequest?.getFileTransferIntent()?.fileName} (${toHumanReadableSize(currentConnectionRequest?.getFileTransferIntent()?.fileSize)})")
+                        },
+                        onDismissRequest = {
+                            showConnectionRequest = false
+
+                            CoroutineScope(Dispatchers.Main).launch {
+                                currentConnectionRequest?.decline()
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showConnectionRequest = false
+
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        currentConnectionRequest?.accept()
+                                    }
+                                }
+                            ) {
+                                Text("Accept")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showConnectionRequest = false
+
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        currentConnectionRequest?.decline()
+                                    }
+                                }
+                            ) {
+                                Text("Decline")
+                            }
+                        }
+                    )
+                }
             }
         }
-    }
-
-    override fun receivedConnectionRequest(request: ConnectionRequest) {
-        request.accept()
     }
 }
 
@@ -120,17 +181,19 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
 fun StartView(devices: List<Device>) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
 
+    val showConnectionRequest by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             MediumTopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary,
                 ),
                 title = {
                     Text(
-                        "DataRCT",
+                        "InterShare",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -145,50 +208,5 @@ fun StartView(devices: List<Device>) {
         ) {
             DeviceList(devices)
         }
-    }
-}
-
-@Composable
-fun DeviceList(devices: List<Device>) {
-    LazyColumn(
-        modifier = Modifier
-            .padding(Dp(10F))
-    ) {
-        items(devices) { device ->
-            ListItem(
-                headlineContent = { Text(device.name) },
-                leadingContent = {
-                    Icon(
-                        Icons.Default.Phone,
-                        contentDescription = "Phone",
-                    )
-                }
-            )
-
-            Divider()
-        }
-    }
-}
-
-@Composable
-fun DeviceItem(device: Device) {
-    // Replace with your desired item layout
-    Text("Device: ${device.name}")
-}
-
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    DataRCTTheme {
-        Greeting("Android")
     }
 }

@@ -337,6 +337,40 @@ private struct FfiConverterUInt64: FfiConverterPrimitive {
     }
 }
 
+private struct FfiConverterDouble: FfiConverterPrimitive {
+    typealias FfiType = Double
+    typealias SwiftType = Double
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Double {
+        return try lift(readDouble(&buf))
+    }
+
+    public static func write(_ value: Double, into buf: inout [UInt8]) {
+        writeDouble(&buf, lower(value))
+    }
+}
+
+private struct FfiConverterBool: FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
 private struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -395,6 +429,12 @@ public protocol ConnectionRequestProtocol: AnyObject {
 
     func decline()
 
+    func getClipboardIntent() -> ClipboardTransferIntent?
+
+    func getFileTransferIntent() -> FileTransferIntent?
+
+    func getIntentType() -> ConnectionIntentType
+
     func getSender() -> Device
 }
 
@@ -430,6 +470,33 @@ public class ConnectionRequest:
             rustCall {
                 uniffi_data_rct_ffi_fn_method_connectionrequest_decline(self.uniffiClonePointer(), $0)
             }
+    }
+
+    public func getClipboardIntent() -> ClipboardTransferIntent? {
+        return try! FfiConverterOptionTypeClipboardTransferIntent.lift(
+            try!
+                rustCall {
+                    uniffi_data_rct_ffi_fn_method_connectionrequest_get_clipboard_intent(self.uniffiClonePointer(), $0)
+                }
+        )
+    }
+
+    public func getFileTransferIntent() -> FileTransferIntent? {
+        return try! FfiConverterOptionTypeFileTransferIntent.lift(
+            try!
+                rustCall {
+                    uniffi_data_rct_ffi_fn_method_connectionrequest_get_file_transfer_intent(self.uniffiClonePointer(), $0)
+                }
+        )
+    }
+
+    public func getIntentType() -> ConnectionIntentType {
+        return try! FfiConverterTypeConnectionIntentType.lift(
+            try!
+                rustCall {
+                    uniffi_data_rct_ffi_fn_method_connectionrequest_get_intent_type(self.uniffiClonePointer(), $0)
+                }
+        )
     }
 
     public func getSender() -> Device {
@@ -597,7 +664,7 @@ public protocol InternalNearbyServerProtocol: AnyObject {
 
     func getAdvertisementData() async -> Data
 
-    func sendFile(receiver: Device, filePath: String) async throws
+    func sendFile(receiver: Device, filePath: String, progressDelegate: ProgressDelegate?) async throws
 
     func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo)
 
@@ -677,13 +744,14 @@ public class InternalNearbyServer:
         )
     }
 
-    public func sendFile(receiver: Device, filePath: String) async throws {
+    public func sendFile(receiver: Device, filePath: String, progressDelegate: ProgressDelegate?) async throws {
         return try await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_send_file(
                     self.uniffiClonePointer(),
                     FfiConverterTypeDevice.lower(receiver),
-                    FfiConverterString.lower(filePath)
+                    FfiConverterString.lower(filePath),
+                    FfiConverterOptionCallbackInterfaceProgressDelegate.lower(progressDelegate)
                 )
             },
             pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
@@ -913,6 +981,52 @@ public func FfiConverterTypeBluetoothLeConnectionInfo_lower(_ value: BluetoothLe
     return FfiConverterTypeBluetoothLeConnectionInfo.lower(value)
 }
 
+public struct ClipboardTransferIntent {
+    public var clipboardContent: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        clipboardContent: String)
+    {
+        self.clipboardContent = clipboardContent
+    }
+}
+
+extension ClipboardTransferIntent: Equatable, Hashable {
+    public static func == (lhs: ClipboardTransferIntent, rhs: ClipboardTransferIntent) -> Bool {
+        if lhs.clipboardContent != rhs.clipboardContent {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(clipboardContent)
+    }
+}
+
+public struct FfiConverterTypeClipboardTransferIntent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ClipboardTransferIntent {
+        return
+            try ClipboardTransferIntent(
+                clipboardContent: FfiConverterString.read(from: &buf)
+            )
+    }
+
+    public static func write(_ value: ClipboardTransferIntent, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.clipboardContent, into: &buf)
+    }
+}
+
+public func FfiConverterTypeClipboardTransferIntent_lift(_ buf: RustBuffer) throws -> ClipboardTransferIntent {
+    return try FfiConverterTypeClipboardTransferIntent.lift(buf)
+}
+
+public func FfiConverterTypeClipboardTransferIntent_lower(_ value: ClipboardTransferIntent) -> RustBuffer {
+    return FfiConverterTypeClipboardTransferIntent.lower(value)
+}
+
 public struct Device {
     public var id: String
     public var name: String
@@ -975,6 +1089,70 @@ public func FfiConverterTypeDevice_lift(_ buf: RustBuffer) throws -> Device {
 
 public func FfiConverterTypeDevice_lower(_ value: Device) -> RustBuffer {
     return FfiConverterTypeDevice.lower(value)
+}
+
+public struct FileTransferIntent {
+    public var fileName: String?
+    public var fileSize: UInt64
+    public var multiple: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        fileName: String?,
+        fileSize: UInt64,
+        multiple: Bool
+    ) {
+        self.fileName = fileName
+        self.fileSize = fileSize
+        self.multiple = multiple
+    }
+}
+
+extension FileTransferIntent: Equatable, Hashable {
+    public static func == (lhs: FileTransferIntent, rhs: FileTransferIntent) -> Bool {
+        if lhs.fileName != rhs.fileName {
+            return false
+        }
+        if lhs.fileSize != rhs.fileSize {
+            return false
+        }
+        if lhs.multiple != rhs.multiple {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fileName)
+        hasher.combine(fileSize)
+        hasher.combine(multiple)
+    }
+}
+
+public struct FfiConverterTypeFileTransferIntent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FileTransferIntent {
+        return
+            try FileTransferIntent(
+                fileName: FfiConverterOptionString.read(from: &buf),
+                fileSize: FfiConverterUInt64.read(from: &buf),
+                multiple: FfiConverterBool.read(from: &buf)
+            )
+    }
+
+    public static func write(_ value: FileTransferIntent, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.fileName, into: &buf)
+        FfiConverterUInt64.write(value.fileSize, into: &buf)
+        FfiConverterBool.write(value.multiple, into: &buf)
+    }
+}
+
+public func FfiConverterTypeFileTransferIntent_lift(_ buf: RustBuffer) throws -> FileTransferIntent {
+    return try FfiConverterTypeFileTransferIntent.lift(buf)
+}
+
+public func FfiConverterTypeFileTransferIntent_lower(_ value: FileTransferIntent) -> RustBuffer {
+    return FfiConverterTypeFileTransferIntent.lower(value)
 }
 
 public struct TcpConnectionInfo {
@@ -1119,6 +1297,48 @@ extension ConnectErrors: Equatable, Hashable {}
 
 extension ConnectErrors: Error {}
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum ConnectionIntentType {
+    case fileTransfer
+    case clipboard
+}
+
+public struct FfiConverterTypeConnectionIntentType: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectionIntentType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionIntentType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        case 1: return .fileTransfer
+
+        case 2: return .clipboard
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectionIntentType, into buf: inout [UInt8]) {
+        switch value {
+        case .fileTransfer:
+            writeInt(&buf, Int32(1))
+
+        case .clipboard:
+            writeInt(&buf, Int32(2))
+        }
+    }
+}
+
+public func FfiConverterTypeConnectionIntentType_lift(_ buf: RustBuffer) throws -> ConnectionIntentType {
+    return try FfiConverterTypeConnectionIntentType.lift(buf)
+}
+
+public func FfiConverterTypeConnectionIntentType_lower(_ value: ConnectionIntentType) -> RustBuffer {
+    return FfiConverterTypeConnectionIntentType.lower(value)
+}
+
+extension ConnectionIntentType: Equatable, Hashable {}
+
 public enum DiscoverySetupError {
     case UnableToSetupUdp(message: String)
 
@@ -1160,6 +1380,77 @@ public struct FfiConverterTypeDiscoverySetupError: FfiConverterRustBuffer {
 extension DiscoverySetupError: Equatable, Hashable {}
 
 extension DiscoverySetupError: Error {}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum SendProgressState {
+    case unknown
+    case connecting
+    case requesting
+    case transferring(
+        progress: Double
+    )
+    case finished
+    case declined
+}
+
+public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
+    typealias SwiftType = SendProgressState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendProgressState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        case 1: return .unknown
+
+        case 2: return .connecting
+
+        case 3: return .requesting
+
+        case 4: return .transferring(
+                progress: try FfiConverterDouble.read(from: &buf)
+            )
+
+        case 5: return .finished
+
+        case 6: return .declined
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SendProgressState, into buf: inout [UInt8]) {
+        switch value {
+        case .unknown:
+            writeInt(&buf, Int32(1))
+
+        case .connecting:
+            writeInt(&buf, Int32(2))
+
+        case .requesting:
+            writeInt(&buf, Int32(3))
+
+        case let .transferring(progress):
+            writeInt(&buf, Int32(4))
+            FfiConverterDouble.write(progress, into: &buf)
+
+        case .finished:
+            writeInt(&buf, Int32(5))
+
+        case .declined:
+            writeInt(&buf, Int32(6))
+        }
+    }
+}
+
+public func FfiConverterTypeSendProgressState_lift(_ buf: RustBuffer) throws -> SendProgressState {
+    return try FfiConverterTypeSendProgressState.lift(buf)
+}
+
+public func FfiConverterTypeSendProgressState_lower(_ value: SendProgressState) -> RustBuffer {
+    return FfiConverterTypeSendProgressState.lower(value)
+}
+
+extension SendProgressState: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -1858,6 +2149,89 @@ extension FfiConverterCallbackInterfaceNearbyConnectionDelegate: FfiConverter {
     }
 }
 
+public protocol ProgressDelegate: AnyObject {
+    func progressChanged(progress: SendProgressState)
+}
+
+// Declaration and FfiConverters for ProgressDelegate Callback Interface
+
+private let uniffiCallbackHandlerProgressDelegate: ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+
+        func invokeProgressChanged(_ swiftCallbackInterface: ProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+            func makeCall() throws -> Int32 {
+                swiftCallbackInterface.progressChanged(
+                    progress: try FfiConverterTypeSendProgressState.read(from: &reader)
+                )
+                return UNIFFI_CALLBACK_SUCCESS
+            }
+            return try makeCall()
+        }
+
+        switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceProgressDelegate.handleMap.remove(handle: handle)
+            // Successful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            guard let cb = FfiConverterCallbackInterfaceProgressDelegate.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeProgressChanged(cb, argsData, argsLen, out_buf)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+        }
+    }
+
+private func uniffiCallbackInitProgressDelegate() {
+    uniffi_data_rct_ffi_fn_init_callback_progressdelegate(uniffiCallbackHandlerProgressDelegate)
+}
+
+// FfiConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceProgressDelegate {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<ProgressDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceProgressDelegate: FfiConverter {
+    typealias SwiftType = ProgressDelegate
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
 private struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1900,6 +2274,48 @@ private struct FfiConverterOptionTypeNativeStream: FfiConverterRustBuffer {
     }
 }
 
+private struct FfiConverterOptionTypeClipboardTransferIntent: FfiConverterRustBuffer {
+    typealias SwiftType = ClipboardTransferIntent?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeClipboardTransferIntent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeClipboardTransferIntent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterOptionTypeFileTransferIntent: FfiConverterRustBuffer {
+    typealias SwiftType = FileTransferIntent?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFileTransferIntent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFileTransferIntent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 private struct FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate: FfiConverterRustBuffer {
     typealias SwiftType = DeviceListUpdateDelegate?
 
@@ -1916,6 +2332,27 @@ private struct FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate: FfiC
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterCallbackInterfaceDeviceListUpdateDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterOptionCallbackInterfaceProgressDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = ProgressDelegate?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceProgressDelegate.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceProgressDelegate.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -2024,6 +2461,15 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_connectionrequest_decline() != 22570 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_data_rct_ffi_checksum_method_connectionrequest_get_clipboard_intent() != 15310 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_connectionrequest_get_file_transfer_intent() != 7548 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_connectionrequest_get_intent_type() != 43069 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_data_rct_ffi_checksum_method_connectionrequest_get_sender() != 11619 {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2054,7 +2500,7 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_get_advertisement_data() != 9521 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 771 {
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 851 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_set_ble_connection_details() != 32984 {
@@ -2108,6 +2554,9 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_nearbyconnectiondelegate_received_connection_request() != 34830 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_data_rct_ffi_checksum_method_progressdelegate_progress_changed() != 52611 {
+        return InitializationResult.apiChecksumMismatch
+    }
 
     uniffiCallbackInitBleDiscoveryImplementationDelegate()
     uniffiCallbackInitBleServerImplementationDelegate()
@@ -2115,6 +2564,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitL2CAPClientDelegate()
     uniffiCallbackInitNativeStreamDelegate()
     uniffiCallbackInitNearbyConnectionDelegate()
+    uniffiCallbackInitProgressDelegate()
     return InitializationResult.ok
 }
 

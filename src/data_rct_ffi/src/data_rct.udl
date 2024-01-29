@@ -38,11 +38,6 @@ callback interface DeviceListUpdateDelegate {
     void device_removed(string device_id);
 };
 
-interface NativeStream {
-    constructor(NativeStreamDelegate delegate);
-    void fill_buffer(bytes data);
-};
-
 callback interface BleServerImplementationDelegate {
     void start_server();
     void stop_server();
@@ -58,8 +53,27 @@ dictionary TcpConnectionInfo {
     u32 port;
 };
 
+dictionary FileTransferIntent {
+    string? file_name;
+    u64 file_size;
+    boolean multiple;
+};
+
+dictionary ClipboardTransferIntent {
+    string clipboard_content;
+};
+
+enum ConnectionIntentType {
+    "FileTransfer",
+    "Clipboard"
+};
+
 interface ConnectionRequest {
     Device get_sender();
+    ConnectionIntentType get_intent_type();
+    FileTransferIntent? get_file_transfer_intent();
+    ClipboardTransferIntent? get_clipboard_intent();
+
     void accept();
     void decline();
 };
@@ -88,5 +102,21 @@ interface InternalDiscovery {
 
 callback interface NativeStreamDelegate {
     u64 write(bytes data);
+    sequence<u8> read(u64 buffer_length);
+    void flush();
     void close();
+};
+
+[Enum]
+interface SendProgressState {
+    Unknown();
+    Connecting();
+    Requesting();
+    Transferring(double progress);
+    Finished();
+    Declined();
+};
+
+callback interface ProgressDelegate {
+    void progress_changed(SendProgressState progress);
 };
