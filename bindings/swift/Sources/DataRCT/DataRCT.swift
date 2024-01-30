@@ -658,11 +658,15 @@ public func FfiConverterTypeInternalDiscovery_lower(_ value: InternalDiscovery) 
 public protocol InternalNearbyServerProtocol: AnyObject {
     func addBleImplementation(bleImplementation: BleServerImplementationDelegate)
 
-    func addL2capClient(delegate: L2capClientDelegate)
+    func addL2CapClient(delegate: L2CapDelegate)
 
     func changeDevice(newDevice: Device)
 
     func getAdvertisementData() async -> Data
+
+    func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate) async
+
+    func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) async
 
     func sendFile(receiver: Device, filePath: String, progressDelegate: ProgressDelegate?) async throws
 
@@ -713,11 +717,11 @@ public class InternalNearbyServer:
             }
     }
 
-    public func addL2capClient(delegate: L2capClientDelegate) {
+    public func addL2CapClient(delegate: L2CapDelegate) {
         try!
             rustCall {
-                uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_l2cap_client(self.uniffiClonePointer(),
-                                                                                    FfiConverterCallbackInterfaceL2capClientDelegate.lower(delegate), $0)
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_l2_cap_client(self.uniffiClonePointer(),
+                                                                                     FfiConverterCallbackInterfaceL2CapDelegate.lower(delegate), $0)
             }
     }
 
@@ -740,6 +744,39 @@ public class InternalNearbyServer:
             completeFunc: ffi_data_rct_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_data_rct_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterData.lift,
+            errorHandler: nil
+        )
+    }
+
+    public func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate) async {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_ble_connection(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(connectionId),
+                    FfiConverterCallbackInterfaceNativeStreamDelegate.lower(nativeStream)
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+        )
+    }
+
+    public func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) async {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_connection(
+                    self.uniffiClonePointer(),
+                    FfiConverterCallbackInterfaceNativeStreamDelegate.lower(nativeStreamHandle)
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
             errorHandler: nil
         )
     }
@@ -845,85 +882,6 @@ public func FfiConverterTypeInternalNearbyServer_lift(_ pointer: UnsafeMutableRa
 
 public func FfiConverterTypeInternalNearbyServer_lower(_ value: InternalNearbyServer) -> UnsafeMutableRawPointer {
     return FfiConverterTypeInternalNearbyServer.lower(value)
-}
-
-public protocol NativeStreamProtocol: AnyObject {
-    func fillBuffer(data: Data)
-}
-
-public class NativeStream:
-    NativeStreamProtocol
-{
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_data_rct_ffi_fn_clone_nativestream(self.pointer, $0) }
-    }
-
-    public convenience init(delegate: NativeStreamDelegate) {
-        self.init(unsafeFromRawPointer: try! rustCall {
-            uniffi_data_rct_ffi_fn_constructor_nativestream_new(
-                FfiConverterCallbackInterfaceNativeStreamDelegate.lower(delegate), $0
-            )
-        })
-    }
-
-    deinit {
-        try! rustCall { uniffi_data_rct_ffi_fn_free_nativestream(pointer, $0) }
-    }
-
-    public func fillBuffer(data: Data) {
-        try!
-            rustCall {
-                uniffi_data_rct_ffi_fn_method_nativestream_fill_buffer(self.uniffiClonePointer(),
-                                                                       FfiConverterData.lower(data), $0)
-            }
-    }
-}
-
-public struct FfiConverterTypeNativeStream: FfiConverter {
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = NativeStream
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NativeStream {
-        return NativeStream(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: NativeStream) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NativeStream {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if ptr == nil {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: NativeStream, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-}
-
-public func FfiConverterTypeNativeStream_lift(_ pointer: UnsafeMutableRawPointer) throws -> NativeStream {
-    return try FfiConverterTypeNativeStream.lift(pointer)
-}
-
-public func FfiConverterTypeNativeStream_lower(_ value: NativeStream) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeNativeStream.lower(value)
 }
 
 public struct BluetoothLeConnectionInfo {
@@ -1226,6 +1184,9 @@ public enum ConnectErrors {
     case FailedToGetTransferRequestResponse(
         error: String
     )
+    case FailedToGetBleDetails
+    case InternalBleHandlerNotAvailable
+    case FailedToEstablishBleConnection
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeConnectErrors.lift(error)
@@ -1253,6 +1214,9 @@ public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
         case 9: return .FailedToGetTransferRequestResponse(
                 error: try FfiConverterString.read(from: &buf)
             )
+        case 10: return .FailedToGetBleDetails
+        case 11: return .InternalBleHandlerNotAvailable
+        case 12: return .FailedToEstablishBleConnection
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1289,6 +1253,15 @@ public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
         case let .FailedToGetTransferRequestResponse(error):
             writeInt(&buf, Int32(9))
             FfiConverterString.write(error, into: &buf)
+
+        case .FailedToGetBleDetails:
+            writeInt(&buf, Int32(10))
+
+        case .InternalBleHandlerNotAvailable:
+            writeInt(&buf, Int32(11))
+
+        case .FailedToEstablishBleConnection:
+            writeInt(&buf, Int32(12))
         }
     }
 }
@@ -1871,25 +1844,23 @@ extension FfiConverterCallbackInterfaceDeviceListUpdateDelegate: FfiConverter {
     }
 }
 
-public protocol L2capClientDelegate: AnyObject {
-    func openL2capConnection(peripheralUuid: String, psm: UInt32) -> NativeStream?
+public protocol L2CapDelegate: AnyObject {
+    func openL2capConnection(connectionId: String, peripheralUuid: String, psm: UInt32)
 }
 
-// Declaration and FfiConverters for L2capClientDelegate Callback Interface
+// Declaration and FfiConverters for L2CapDelegate Callback Interface
 
-private let uniffiCallbackHandlerL2CAPClientDelegate: ForeignCallback =
+private let uniffiCallbackHandlerL2CapDelegate: ForeignCallback =
     { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
 
-        func invokeOpenL2capConnection(_ swiftCallbackInterface: L2capClientDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func invokeOpenL2capConnection(_ swiftCallbackInterface: L2CapDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
             var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
             func makeCall() throws -> Int32 {
-                let result = swiftCallbackInterface.openL2capConnection(
+                swiftCallbackInterface.openL2capConnection(
+                    connectionId: try FfiConverterString.read(from: &reader),
                     peripheralUuid: try FfiConverterString.read(from: &reader),
                     psm: try FfiConverterUInt32.read(from: &reader)
                 )
-                var writer = [UInt8]()
-                FfiConverterOptionTypeNativeStream.write(result, into: &writer)
-                out_buf.pointee = RustBuffer(bytes: writer)
                 return UNIFFI_CALLBACK_SUCCESS
             }
             return try makeCall()
@@ -1897,12 +1868,12 @@ private let uniffiCallbackHandlerL2CAPClientDelegate: ForeignCallback =
 
         switch method {
         case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceL2capClientDelegate.handleMap.remove(handle: handle)
+            FfiConverterCallbackInterfaceL2CapDelegate.handleMap.remove(handle: handle)
             // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
-            guard let cb = FfiConverterCallbackInterfaceL2capClientDelegate.handleMap.get(handle: handle) else {
+            guard let cb = FfiConverterCallbackInterfaceL2CapDelegate.handleMap.get(handle: handle) else {
                 out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
             }
@@ -1923,17 +1894,17 @@ private let uniffiCallbackHandlerL2CAPClientDelegate: ForeignCallback =
         }
     }
 
-private func uniffiCallbackInitL2CAPClientDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_l2capclientdelegate(uniffiCallbackHandlerL2CAPClientDelegate)
+private func uniffiCallbackInitL2CapDelegate() {
+    uniffi_data_rct_ffi_fn_init_callback_l2capdelegate(uniffiCallbackHandlerL2CapDelegate)
 }
 
 // FfiConverter protocol for callback interfaces
-private enum FfiConverterCallbackInterfaceL2capClientDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<L2capClientDelegate>()
+private enum FfiConverterCallbackInterfaceL2CapDelegate {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<L2CapDelegate>()
 }
 
-extension FfiConverterCallbackInterfaceL2capClientDelegate: FfiConverter {
-    typealias SwiftType = L2capClientDelegate
+extension FfiConverterCallbackInterfaceL2CapDelegate: FfiConverter {
+    typealias SwiftType = L2CapDelegate
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -1961,6 +1932,10 @@ extension FfiConverterCallbackInterfaceL2capClientDelegate: FfiConverter {
 public protocol NativeStreamDelegate: AnyObject {
     func write(data: Data) -> UInt64
 
+    func read(bufferLength: UInt64) -> Data
+
+    func flush()
+
     func close()
 }
 
@@ -1978,6 +1953,29 @@ private let uniffiCallbackHandlerNativeStreamDelegate: ForeignCallback =
                 var writer = [UInt8]()
                 FfiConverterUInt64.write(result, into: &writer)
                 out_buf.pointee = RustBuffer(bytes: writer)
+                return UNIFFI_CALLBACK_SUCCESS
+            }
+            return try makeCall()
+        }
+
+        func invokeRead(_ swiftCallbackInterface: NativeStreamDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+            func makeCall() throws -> Int32 {
+                let result = swiftCallbackInterface.read(
+                    bufferLength: try FfiConverterUInt64.read(from: &reader)
+                )
+                var writer = [UInt8]()
+                FfiConverterData.write(result, into: &writer)
+                out_buf.pointee = RustBuffer(bytes: writer)
+                return UNIFFI_CALLBACK_SUCCESS
+            }
+            return try makeCall()
+        }
+
+        func invokeFlush(_ swiftCallbackInterface: NativeStreamDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+            func makeCall() throws -> Int32 {
+                swiftCallbackInterface.flush(
+                )
                 return UNIFFI_CALLBACK_SUCCESS
             }
             return try makeCall()
@@ -2010,6 +2008,28 @@ private let uniffiCallbackHandlerNativeStreamDelegate: ForeignCallback =
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
             }
         case 2:
+            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeRead(cb, argsData, argsLen, out_buf)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 3:
+            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeFlush(cb, argsData, argsLen, out_buf)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 4:
             guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
                 out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
@@ -2253,27 +2273,6 @@ private struct FfiConverterOptionString: FfiConverterRustBuffer {
     }
 }
 
-private struct FfiConverterOptionTypeNativeStream: FfiConverterRustBuffer {
-    typealias SwiftType = NativeStream?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeNativeStream.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeNativeStream.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 private struct FfiConverterOptionTypeClipboardTransferIntent: FfiConverterRustBuffer {
     typealias SwiftType = ClipboardTransferIntent?
 
@@ -2485,19 +2484,22 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_internaldiscovery_stop() != 51582 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_nativestream_fill_buffer() != 47959 {
-        return InitializationResult.apiChecksumMismatch
-    }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_add_ble_implementation() != 33524 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_add_l2cap_client() != 29751 {
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_add_l2_cap_client() != 8114 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_change_device() != 39335 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_get_advertisement_data() != 9521 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_ble_connection() != 11200 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_connection() != 42361 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 851 {
@@ -2516,9 +2518,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_constructor_internaldiscovery_new() != 38932 {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if uniffi_data_rct_ffi_checksum_constructor_nativestream_new() != 61593 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_constructor_internalnearbyserver_new() != 19105 {
@@ -2542,10 +2541,16 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_devicelistupdatedelegate_device_removed() != 65271 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_l2capclientdelegate_open_l2cap_connection() != 18200 {
+    if uniffi_data_rct_ffi_checksum_method_l2capdelegate_open_l2cap_connection() != 32283 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_write() != 8086 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_read() != 26757 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_flush() != 9770 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_close() != 25937 {
@@ -2561,7 +2566,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitBleDiscoveryImplementationDelegate()
     uniffiCallbackInitBleServerImplementationDelegate()
     uniffiCallbackInitDeviceListUpdateDelegate()
-    uniffiCallbackInitL2CAPClientDelegate()
+    uniffiCallbackInitL2CapDelegate()
     uniffiCallbackInitNativeStreamDelegate()
     uniffiCallbackInitNearbyConnectionDelegate()
     uniffiCallbackInitProgressDelegate()

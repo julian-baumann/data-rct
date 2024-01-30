@@ -25,6 +25,9 @@ interface ConnectErrors {
     FailedToEncryptStream(string error);
     FailedToDetermineFileSize(string error);
     FailedToGetTransferRequestResponse(string error);
+    FailedToGetBleDetails();
+    InternalBleHandlerNotAvailable();
+    FailedToEstablishBleConnection();
 };
 
 [Error]
@@ -82,8 +85,8 @@ callback interface NearbyConnectionDelegate {
     void received_connection_request(ConnectionRequest request);
 };
 
-callback interface L2CAPClientDelegate {
-    NativeStream? open_l2cap_connection(string peripheral_uuid, u32 psm);
+callback interface L2CapDelegate {
+    void open_l2cap_connection(string connection_id, string peripheral_uuid, u32 psm);
 };
 
 callback interface BleDiscoveryImplementationDelegate {
@@ -102,7 +105,7 @@ interface InternalDiscovery {
 
 callback interface NativeStreamDelegate {
     u64 write(bytes data);
-    sequence<u8> read(u64 buffer_length);
+    bytes read(u64 buffer_length);
     void flush();
     void close();
 };

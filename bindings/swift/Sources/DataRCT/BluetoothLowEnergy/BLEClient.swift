@@ -12,7 +12,7 @@ public enum OpenL2CAPErrors: Error {
     case PeripheralNotFound
 }
 
-public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, L2capClientDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
+public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
     private let delegate: DiscoveryDelegate
     private let internalHandler: InternalDiscovery
     private let centralManager = CBCentralManager()
@@ -91,7 +91,7 @@ public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, L2capClien
     }
     
     public func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
-        print("test \(invalidatedServices)")
+        // Do nothing. Not sure what this does, but if I don't implement it, BLE behaves weirdly
     }
     
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -106,22 +106,5 @@ public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, L2capClien
             internalHandler.parseDiscoveryMessage(data: data, bleUuid: peripheral.identifier.uuidString)
             centralManager.cancelPeripheralConnection(peripheral)
         }
-    }
-    
-    public func openL2capConnection(peripheralUuid: String, psm: UInt32) -> NativeStream? {
-        let peripherals = centralManager.retrievePeripherals(withIdentifiers: [
-            UUID(uuidString: peripheralUuid)!
-        ])
-        
-        if peripherals.isEmpty {
-            print("ERROR: Couldn't locate peripheral")
-            return nil
-        }
-        
-        let peripheral = peripherals.first
-        
-        peripheral?.openL2CAPChannel(CBL2CAPPSM(psm))
-        
-        return nil
     }
 }

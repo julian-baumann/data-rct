@@ -4,17 +4,19 @@ use std::sync::{Arc, RwLock};
 pub use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID, ClipboardTransferIntent};
 pub use data_rct::connection_request::ConnectionRequest;
 pub use data_rct::Device;
-pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery, DiscoverySetupError};
+pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
 pub use data_rct::encryption::EncryptedStream;
-pub use data_rct::nearby::{SendProgressState, ProgressDelegate, BleServerImplementationDelegate, ConnectErrors, L2CAPDelegate, NearbyConnectionDelegate, NearbyServer};
+pub use data_rct::nearby::{SendProgressState, ProgressDelegate, BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer};
 pub use data_rct::nearby::ConnectionIntentType;
 pub use data_rct::protocol::communication::FileTransferIntent;
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
 use data_rct::protocol::discovery::device_discovery_message::Content;
 use data_rct::protocol::prost::Message;
-pub use data_rct::stream::IncomingErrors;
+pub use data_rct::stream::NativeStreamDelegate;
 pub use data_rct::transmission::TransmissionSetupError;
+pub use data_rct::errors::*;
+pub use data_rct::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExternalIOError {
@@ -43,7 +45,6 @@ pub struct InternalNearbyServer {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl InternalNearbyServer {
-
     #[uniffi::constructor]
     pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
         let server = NearbyServer::new(my_device, file_storage, delegate);
@@ -54,8 +55,8 @@ impl InternalNearbyServer {
         }
     }
 
-    pub fn add_l2cap_client(&self, delegate: Box<dyn L2CAPDelegate>) {
-        self.handler.blocking_write().add_l2cap_client(delegate);
+    pub fn add_l2_cap_client(&self, delegate: Box<dyn L2CapDelegate>) {
+        self.handler.blocking_write().add_l2_cap_client(delegate);
     }
 
     pub fn add_ble_implementation(&self, ble_implementation: Box<dyn BleServerImplementationDelegate>) {
@@ -107,14 +108,24 @@ impl InternalNearbyServer {
         self.handler.write().await.start().await.expect("Failed to start server");
     }
 
+    pub async fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
+        println!("handle incoming BLE");
+        let result = self.handler.write().await.handle_incoming_ble_connection(connection_id, native_stream);
+        println!("done handling incoming BLE");
+
+        return result;
+    }
+
     pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn ProgressDelegate>>) -> Result<(), ConnectErrors> {
-        return self.handler.read().await.send_file(receiver, file_path, progress_delegate).await;
+        return self.handler.write().await.send_file(receiver, file_path, progress_delegate).await;
     }
 
     pub async fn stop(&self) {
-        println!("Stopping...");
         self.handler.write().await.stop();
-        println!("Stopped");
+    }
+
+    pub async fn handle_incoming_connection(&self, native_stream_handle: Box<dyn NativeStreamDelegate>) {
+        self.handler.read().await.handle_incoming_connection(native_stream_handle);
     }
 }
 
@@ -150,22 +161,5 @@ impl InternalDiscovery {
         self.handler.write().expect("Failed to lock handler").parse_discovery_message(data, ble_uuid);
     }
 }
-//
-// trait UniffiReadWrite {
-//     fn write_bytes(&self, write_buffer: Vec<u8>) -> Result<u64, ExternalIOError>;
-//     fn flush_bytes(&self) -> Result<(), ExternalIOError>;
-// }
-//
-// impl UniffiReadWrite for EncryptedStream {
-//     fn write_bytes(&self, buffer: Vec<u8>) -> Result<u64, ExternalIOError> {
-//         return Ok(
-//             self.write_immutable(buffer.as_slice())? as u64
-//         );
-//     }
-//
-//     fn flush_bytes(&self) -> Result<(), ExternalIOError> {
-//         return Ok(self.flush_immutable()?);
-//     }
-// }
 
 uniffi::include_scaffolding!("data_rct");

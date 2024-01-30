@@ -10,10 +10,11 @@ import CoreBluetooth
 
 struct InvalidStateError: Error {}
 
-class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerDelegate {
+class BLEPeripheralManager: NSObject, BleServerImplementationDelegate, CBPeripheralManagerDelegate {
     private let peripheralManager: CBPeripheralManager
     private let internalHandler: InternalNearbyServer
     private let nearbyServerDelegate: NearbyServerDelegate
+    private var streams: [L2CapStream] = []
 
     private var isPoweredOn = false
     public var state: BluetoothState
@@ -44,17 +45,25 @@ class BLEServer: NSObject, BleServerImplementationDelegate, CBPeripheralManagerD
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?) {
+        print("L2CAP Channel PSM: \(PSM)")
         internalHandler.setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo(uuid: "", psm: UInt32(PSM)))
         addService()
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
-        guard let channel = channel else {
+        print("L2CAP Channel was opened")
+        
+        guard let channel else {
             return
         }
+        
+        let l2capStream = L2CapStream(inputStream: channel.inputStream, outputStream: channel.outputStream)
+        streams.append(l2capStream)
 
-        channel.inputStream.open()
-        channel.outputStream.open()
+        Task {
+            print("Handling it over to rust")
+            await internalHandler.handleIncomingConnection(nativeStreamHandle: l2capStream)
+        }
     }
     
     func addService() {

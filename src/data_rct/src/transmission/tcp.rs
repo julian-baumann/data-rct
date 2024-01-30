@@ -1,14 +1,15 @@
 use std::error::Error;
 use std::{io, thread};
-use std::net::{SocketAddr};
+use std::net::SocketAddr;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use prost_stream::Stream;
 use protocol::communication::TransferRequest;
-use crate::communication::{initiate_receiver_communication};
+
+use crate::communication::initiate_receiver_communication;
 use crate::connection_request::ConnectionRequest;
-use crate::nearby::{NearbyConnectionDelegate};
+use crate::nearby::NearbyConnectionDelegate;
 use crate::stream::Close;
 
 pub struct TcpServer {
@@ -50,13 +51,28 @@ impl TcpServer {
                 };
 
                 println!("initiating receiver");
-                let connection_request = match initiate_receiver_communication(tcp_stream, file_storage.clone()) {
+                let mut encrypted_stream = match initiate_receiver_communication(tcp_stream) {
                     Ok(request) => request,
                     Err(error) => {
                         println!("Encryption error {:}", error);
                         continue;
                     }
                 };
+
+                let mut prost_stream = Stream::new(&mut encrypted_stream);
+                let transfer_request = match prost_stream.recv::<TransferRequest>() {
+                    Ok(message) => message,
+                    Err(error) => {
+                        println!("Error {:}", error);
+                        continue;
+                    }
+                };
+
+                let connection_request = ConnectionRequest::new(
+                    transfer_request,
+                    Box::new(encrypted_stream),
+                    file_storage.clone()
+                );
 
                 delegate.lock().expect("Failed to lock").received_connection_request(Arc::new(connection_request));
             }

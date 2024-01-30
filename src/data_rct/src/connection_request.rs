@@ -7,7 +7,7 @@ use protocol::communication::transfer_request::Intent;
 use protocol::communication::{ClipboardTransferIntent, FileTransferIntent, TransferRequest, TransferRequestResponse};
 use protocol::discovery::Device;
 use crate::encryption::EncryptedReadWrite;
-use crate::nearby::{ConnectionIntentType};
+use crate::nearby::ConnectionIntentType;
 
 pub struct ConnectionRequest {
     transfer_request: TransferRequest,
@@ -76,7 +76,7 @@ impl ConnectionRequest {
         };
     }
 
-    fn handle_clipboard(&self, clipboard_transfer_intent: ClipboardTransferIntent) {
+    fn handle_clipboard(&self, _clipboard_transfer_intent: ClipboardTransferIntent) {
         panic!("Not implemented yet");
     }
 

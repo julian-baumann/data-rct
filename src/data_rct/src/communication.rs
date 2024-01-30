@@ -3,12 +3,11 @@ use std::io::{Read, Write};
 use prost_stream::Stream;
 use rand_core::OsRng;
 use x25519_dalek::{EphemeralSecret, PublicKey};
-use protocol::communication::{EncryptionRequest, EncryptionResponse, TransferRequest};
-use crate::connection_request::ConnectionRequest;
-use crate::encryption::{EncryptedStream, generate_iv};
-use crate::stream::Close;
+use protocol::communication::{EncryptionRequest, EncryptionResponse};
+use crate::encryption::generate_iv;
+use crate::encryption::EncryptedStream;
 
-pub async fn initiate_sender_communication<T>(mut stream: T) -> Result<EncryptedStream<T>, Box<dyn Error>> where T: Read + Write + Close {
+pub async fn initiate_sender_communication<T>(mut stream: T) -> Result<EncryptedStream<T>, Box<dyn Error>> where T: Read + Write {
     let secret = EphemeralSecret::random_from_rng(OsRng);
     let public_key = PublicKey::from(&secret);
     let encryption_request = EncryptionRequest {
@@ -41,7 +40,7 @@ pub async fn initiate_sender_communication<T>(mut stream: T) -> Result<Encrypted
     return Ok(encrypted_stream);
 }
 
-pub fn initiate_receiver_communication<T>(mut stream: T, file_storage: String) -> Result<ConnectionRequest, Box<dyn Error>> where T: Read + Write + Close + 'static {
+pub fn initiate_receiver_communication<T>(mut stream: T) -> Result<EncryptedStream<T>, Box<dyn Error>> where T: Read + Write {
     let secret = EphemeralSecret::random_from_rng(OsRng);
     let public_key = PublicKey::from(&secret);
 
@@ -70,24 +69,7 @@ pub fn initiate_receiver_communication<T>(mut stream: T, file_storage: String) -
     let shared_secret = secret.diffie_hellman(&foreign_public_key);
 
     println!("Encrypting stream");
-    let mut encrypted_stream = EncryptedStream::new(shared_secret.to_bytes(), iv, stream);
+    let encrypted_stream = EncryptedStream::new(shared_secret.to_bytes(), iv, stream);
 
-    let mut prost_stream = Stream::new(&mut encrypted_stream);
-    let transfer_request = match prost_stream.recv::<TransferRequest>() {
-        Ok(message) => message,
-        Err(error) => {
-            println!("Error {:}", error);
-            return Err(error.into());
-        }
-    };
-
-    println!("Received Transfer Request from {:}", transfer_request.clone().device.unwrap().name);
-
-    let connection_request = ConnectionRequest::new(
-        transfer_request,
-        Box::new(encrypted_stream),
-        file_storage.clone()
-    );
-
-    return Ok(connection_request);
+    return Ok(encrypted_stream);
 }

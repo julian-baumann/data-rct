@@ -56,14 +56,15 @@ public protocol NearbyServerDelegate: NearbyConnectionDelegate {
 
 public class NearbyServer {
     private let internalHandler: InternalNearbyServer
-    private let bleServer: BLEServer
+    private let bleServer: BLEPeripheralManager
     public var state: BluetoothState { get { bleServer.state } }
     
     public init(myDevice: Device, storage: String, delegate: NearbyServerDelegate) {
         internalHandler = InternalNearbyServer(myDevice: myDevice, fileStorage: storage, delegate: delegate)
-        bleServer = BLEServer(handler: internalHandler, delegate: delegate)
+        bleServer = BLEPeripheralManager(handler: internalHandler, delegate: delegate)
 
         internalHandler.addBleImplementation(bleImplementation: bleServer)
+        internalHandler.addL2CapClient(delegate: L2CAPClient(internalHandler: internalHandler))
     }
     
     public func changeDevice(_ newDevice: Device) {

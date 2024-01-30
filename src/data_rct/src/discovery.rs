@@ -1,8 +1,7 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
-use thiserror::Error;
-use protocol::{DiscoveryDelegate};
+use protocol::DiscoveryDelegate;
 use protocol::discovery::{DeviceConnectionInfo, DeviceDiscoveryMessage, Device};
 use protocol::discovery::device_discovery_message::Content;
 use protocol::prost::Message;

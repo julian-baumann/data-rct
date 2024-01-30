@@ -1,4 +1,3 @@
-use std::error::Error;
 use thiserror::Error;
 
 pub mod tcp;

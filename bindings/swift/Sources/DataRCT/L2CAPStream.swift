@@ -11,7 +11,6 @@ import DataRCTFFI
 class L2CapStream: NSObject, StreamDelegate, NativeStreamDelegate {
     private let inputStream: InputStream
     private let outputStream: OutputStream
-    private var innerStream: NativeStream?
     
     init(inputStream: InputStream, outputStream: OutputStream) {
         self.inputStream = inputStream
@@ -19,48 +18,58 @@ class L2CapStream: NSObject, StreamDelegate, NativeStreamDelegate {
      
         super.init()
 
-        self.innerStream = NativeStream(delegate: self)
-        self.inputStream.delegate = self
-    }
-
-    func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
-        switch eventCode {
-        case .hasBytesAvailable:
-            readAvailableBytes(stream: aStream as! InputStream)
-            break
-        default:
-            // Handle other cases like error, end of stream, etc.
-            break
-        }
+//        self.inputStream.delegate = self
+//        self.outputStream.delegate = self
+        
+        self.inputStream.schedule(in: .main, forMode: RunLoop.Mode.default)
+        self.outputStream.schedule(in: .main, forMode: RunLoop.Mode.default)
+        
+        self.inputStream.open()
+        self.outputStream.open()
     }
     
-    private func readAvailableBytes(stream: InputStream) {
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
+    func read(bufferLength: UInt64) -> Data {
+        print("Want to READ from L2CAP stream")
+        
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferLength))
+        defer { buffer.deallocate() }
 
-        while stream.hasBytesAvailable {
-            let numberOfBytesRead = inputStream.read(buffer, maxLength: 1024)
+        var data = Data()
 
-            if numberOfBytesRead < 0, let error = stream.streamError {
+        while inputStream.hasBytesAvailable {
+            let numberOfBytesRead = inputStream.read(buffer, maxLength: Int(bufferLength))
+            print("L2Cap Bytes read \(numberOfBytesRead)")
+
+            if numberOfBytesRead < 0, let error = inputStream.streamError {
                 print(error)
                 break
             }
-            
-            guard let innerStream = innerStream else {
-                continue
+
+            if numberOfBytesRead > 0 {
+                data.append(buffer, count: numberOfBytesRead)
+            } else {
+                break
             }
-            
-            innerStream.fillBuffer(data: Data(bytes: buffer, count: numberOfBytesRead))
         }
+
+        return data
+    }
     
-        buffer.deallocate()
+    func flush() {
+        // TODO
     }
     
     func write(data: Data) -> UInt64 {
+        print("Want to write L2CAP bytes")
+
         var bytesWritten = 0;
 
         let _ = data.withUnsafeBytes {
             bytesWritten = outputStream.write($0.bindMemory(to: UInt8.self).baseAddress!, maxLength: data.count)
+            print("L2Cap Bytes written \(bytesWritten)")
         }
+
+        print("Written \(bytesWritten) L2CAP bytes")
         
         return UInt64(bytesWritten)
     }
