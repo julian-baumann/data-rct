@@ -1,13 +1,13 @@
 use std::io;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub use data_rct::{BLE_CHARACTERISTIC_UUID, BLE_SERVICE_UUID, ClipboardTransferIntent};
-pub use data_rct::connection_request::ConnectionRequest;
+pub use data_rct::connection_request::{ConnectionRequest, ReceiveProgressState, ReceiveProgressDelegate};
 pub use data_rct::Device;
 pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
 pub use data_rct::encryption::EncryptedStream;
-pub use data_rct::nearby::{SendProgressState, ProgressDelegate, BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer};
+pub use data_rct::nearby::{SendProgressState, SendProgressDelegate, BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer};
 pub use data_rct::nearby::ConnectionIntentType;
 pub use data_rct::protocol::communication::FileTransferIntent;
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
@@ -17,6 +17,7 @@ pub use data_rct::stream::NativeStreamDelegate;
 pub use data_rct::transmission::TransmissionSetupError;
 pub use data_rct::errors::*;
 pub use data_rct::*;
+use tokio::sync::RwLock;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExternalIOError {
@@ -38,9 +39,14 @@ pub fn get_ble_characteristic_uuid() -> String {
     return BLE_CHARACTERISTIC_UUID.to_string();
 }
 
+struct InternalNearbyServerVariables {
+    discovery_message: Option<Vec<u8>>
+}
+
 #[derive(uniffi::Object)]
 pub struct InternalNearbyServer {
-    handler: Arc<tokio::sync::RwLock<NearbyServer>>
+    handler: NearbyServer,
+    mut_variables: Arc<RwLock<InternalNearbyServerVariables>>
 }
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -48,96 +54,94 @@ impl InternalNearbyServer {
     #[uniffi::constructor]
     pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
         let server = NearbyServer::new(my_device, file_storage, delegate);
-        let server = Arc::new(tokio::sync::RwLock::new(server));
 
         Self {
-            handler: server
+            handler: server,
+            mut_variables: Arc::new(RwLock::new(InternalNearbyServerVariables {
+                discovery_message: None
+            }))
         }
     }
 
     pub fn add_l2_cap_client(&self, delegate: Box<dyn L2CapDelegate>) {
-        self.handler.blocking_write().add_l2_cap_client(delegate);
+        self.handler.add_l2_cap_client(delegate);
     }
 
     pub fn add_ble_implementation(&self, ble_implementation: Box<dyn BleServerImplementationDelegate>) {
-        self.handler.blocking_write().add_bluetooth_implementation(ble_implementation);
+        self.handler.add_bluetooth_implementation(ble_implementation);
     }
 
     pub fn change_device(&self, new_device: Device) {
-        self.handler.blocking_write().change_device(new_device);
+        self.handler.change_device(new_device);
     }
 
     pub fn set_ble_connection_details(&self, ble_details: BluetoothLeConnectionInfo) {
-        self.handler.blocking_write().set_bluetooth_le_details(ble_details)
+        self.handler.set_bluetooth_le_details(ble_details)
     }
 
     pub fn set_tcp_details(&self, tcp_details: TcpConnectionInfo) {
-        self.handler.blocking_write().set_tcp_details(tcp_details)
+        self.handler.set_tcp_details(tcp_details)
     }
 
     pub async fn get_advertisement_data(&self) -> Vec<u8> {
-        if self.handler.read().await.advertise {
-            return DeviceDiscoveryMessage {
-                content: Some(
-                    Content::DeviceConnectionInfo(
-                        self.handler
-                            .read()
-                            .await
-                            .device_connection_info.clone()
-                    )
-                ),
-            }.encode_length_delimited_to_vec();
+        if self.mut_variables.read().await.discovery_message.is_none() {
+            if self.handler.variables.read().await.advertise {
+                let message = Some(DeviceDiscoveryMessage {
+                    content: Some(
+                        Content::DeviceConnectionInfo(
+                            self.handler.variables
+                                .read()
+                                .await
+                                .device_connection_info.clone()
+                        )
+                    ),
+                }.encode_length_delimited_to_vec());
+
+                self.mut_variables.write().await.discovery_message = message;
+            }
         }
 
-        return DeviceDiscoveryMessage {
-            content: Some(
-                Content::OfflineDeviceId(
-                    self.handler
-                        .read()
-                        .await
-                        .device_connection_info.device
-                        .as_ref()
-                        .expect("Device not set!")
-                        .id.clone()
-                )
-            ),
-        }.encode_length_delimited_to_vec();
+        if let Some(discovery_message) = &self.mut_variables.read().await.discovery_message {
+            return discovery_message.clone();
+        }
+
+        return vec![];
     }
 
     pub async fn start(&self) {
-        self.handler.write().await.start().await.expect("Failed to start server");
+        self.handler.start().await;
     }
 
     pub async fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
         println!("handle incoming BLE");
-        let result = self.handler.write().await.handle_incoming_ble_connection(connection_id, native_stream);
+        let result = self.handler.handle_incoming_ble_connection(connection_id, native_stream);
         println!("done handling incoming BLE");
 
         return result;
     }
 
-    pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn ProgressDelegate>>) -> Result<(), ConnectErrors> {
-        return self.handler.write().await.send_file(receiver, file_path, progress_delegate).await;
+    pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn SendProgressDelegate>>) -> Result<(), ConnectErrors> {
+        return self.handler.send_file(receiver, file_path, progress_delegate).await;
     }
 
     pub async fn stop(&self) {
-        self.handler.write().await.stop();
+        self.handler.stop();
     }
 
     pub async fn handle_incoming_connection(&self, native_stream_handle: Box<dyn NativeStreamDelegate>) {
-        self.handler.read().await.handle_incoming_connection(native_stream_handle);
+        self.handler.handle_incoming_connection(native_stream_handle);
     }
 }
 
 pub struct InternalDiscovery {
-    handler: Arc<RwLock<Discovery>>
+    handler: Arc<std::sync::RwLock<Discovery>>
 }
 
 impl InternalDiscovery {
     pub fn new(delegate: Option<Box<dyn DeviceListUpdateDelegate>>) -> Result<Self, DiscoverySetupError> {
 
         Ok(Self {
-            handler: Arc::new(RwLock::new(Discovery::new(delegate)?))
+            handler: Arc::new(std::sync::RwLock::new(Discovery::new(delegate)?))
         })
     }
 

@@ -436,6 +436,8 @@ public protocol ConnectionRequestProtocol: AnyObject {
     func getIntentType() -> ConnectionIntentType
 
     func getSender() -> Device
+
+    func setProgressDelegate(delegate: ReceiveProgressDelegate)
 }
 
 public class ConnectionRequest:
@@ -506,6 +508,14 @@ public class ConnectionRequest:
                     uniffi_data_rct_ffi_fn_method_connectionrequest_get_sender(self.uniffiClonePointer(), $0)
                 }
         )
+    }
+
+    public func setProgressDelegate(delegate: ReceiveProgressDelegate) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_connectionrequest_set_progress_delegate(self.uniffiClonePointer(),
+                                                                                      FfiConverterCallbackInterfaceReceiveProgressDelegate.lower(delegate), $0)
+            }
     }
 }
 
@@ -668,7 +678,7 @@ public protocol InternalNearbyServerProtocol: AnyObject {
 
     func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) async
 
-    func sendFile(receiver: Device, filePath: String, progressDelegate: ProgressDelegate?) async throws
+    func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws
 
     func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo)
 
@@ -781,14 +791,14 @@ public class InternalNearbyServer:
         )
     }
 
-    public func sendFile(receiver: Device, filePath: String, progressDelegate: ProgressDelegate?) async throws {
+    public func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws {
         return try await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_send_file(
                     self.uniffiClonePointer(),
                     FfiConverterTypeDevice.lower(receiver),
                     FfiConverterString.lower(filePath),
-                    FfiConverterOptionCallbackInterfaceProgressDelegate.lower(progressDelegate)
+                    FfiConverterOptionCallbackInterfaceSendProgressDelegate.lower(progressDelegate)
                 )
             },
             pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
@@ -1356,6 +1366,71 @@ extension DiscoverySetupError: Error {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum ReceiveProgressState {
+    case unknown
+    case handshake
+    case receiving(
+        progress: Double
+    )
+    case cancelled
+    case finished
+}
+
+public struct FfiConverterTypeReceiveProgressState: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiveProgressState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveProgressState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        case 1: return .unknown
+
+        case 2: return .handshake
+
+        case 3: return .receiving(
+                progress: try FfiConverterDouble.read(from: &buf)
+            )
+
+        case 4: return .cancelled
+
+        case 5: return .finished
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiveProgressState, into buf: inout [UInt8]) {
+        switch value {
+        case .unknown:
+            writeInt(&buf, Int32(1))
+
+        case .handshake:
+            writeInt(&buf, Int32(2))
+
+        case let .receiving(progress):
+            writeInt(&buf, Int32(3))
+            FfiConverterDouble.write(progress, into: &buf)
+
+        case .cancelled:
+            writeInt(&buf, Int32(4))
+
+        case .finished:
+            writeInt(&buf, Int32(5))
+        }
+    }
+}
+
+public func FfiConverterTypeReceiveProgressState_lift(_ buf: RustBuffer) throws -> ReceiveProgressState {
+    return try FfiConverterTypeReceiveProgressState.lift(buf)
+}
+
+public func FfiConverterTypeReceiveProgressState_lower(_ value: ReceiveProgressState) -> RustBuffer {
+    return FfiConverterTypeReceiveProgressState.lower(value)
+}
+
+extension ReceiveProgressState: Equatable, Hashable {}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum SendProgressState {
     case unknown
     case connecting
@@ -1363,6 +1438,7 @@ public enum SendProgressState {
     case transferring(
         progress: Double
     )
+    case cancelled
     case finished
     case declined
 }
@@ -1383,9 +1459,11 @@ public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
                 progress: try FfiConverterDouble.read(from: &buf)
             )
 
-        case 5: return .finished
+        case 5: return .cancelled
 
-        case 6: return .declined
+        case 6: return .finished
+
+        case 7: return .declined
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1406,11 +1484,14 @@ public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(4))
             FfiConverterDouble.write(progress, into: &buf)
 
-        case .finished:
+        case .cancelled:
             writeInt(&buf, Int32(5))
 
-        case .declined:
+        case .finished:
             writeInt(&buf, Int32(6))
+
+        case .declined:
+            writeInt(&buf, Int32(7))
         }
     }
 }
@@ -1936,7 +2017,7 @@ public protocol NativeStreamDelegate: AnyObject {
 
     func flush()
 
-    func close()
+    func disconnect()
 }
 
 // Declaration and FfiConverters for NativeStreamDelegate Callback Interface
@@ -1981,9 +2062,9 @@ private let uniffiCallbackHandlerNativeStreamDelegate: ForeignCallback =
             return try makeCall()
         }
 
-        func invokeClose(_ swiftCallbackInterface: NativeStreamDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func invokeDisconnect(_ swiftCallbackInterface: NativeStreamDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
             func makeCall() throws -> Int32 {
-                swiftCallbackInterface.close(
+                swiftCallbackInterface.disconnect(
                 )
                 return UNIFFI_CALLBACK_SUCCESS
             }
@@ -2035,7 +2116,7 @@ private let uniffiCallbackHandlerNativeStreamDelegate: ForeignCallback =
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
             }
             do {
-                return try invokeClose(cb, argsData, argsLen, out_buf)
+                return try invokeDisconnect(cb, argsData, argsLen, out_buf)
             } catch {
                 out_buf.pointee = FfiConverterString.lower(String(describing: error))
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
@@ -2169,20 +2250,20 @@ extension FfiConverterCallbackInterfaceNearbyConnectionDelegate: FfiConverter {
     }
 }
 
-public protocol ProgressDelegate: AnyObject {
-    func progressChanged(progress: SendProgressState)
+public protocol ReceiveProgressDelegate: AnyObject {
+    func progressChanged(progress: ReceiveProgressState)
 }
 
-// Declaration and FfiConverters for ProgressDelegate Callback Interface
+// Declaration and FfiConverters for ReceiveProgressDelegate Callback Interface
 
-private let uniffiCallbackHandlerProgressDelegate: ForeignCallback =
+private let uniffiCallbackHandlerReceiveProgressDelegate: ForeignCallback =
     { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
 
-        func invokeProgressChanged(_ swiftCallbackInterface: ProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func invokeProgressChanged(_ swiftCallbackInterface: ReceiveProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
             var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
             func makeCall() throws -> Int32 {
                 swiftCallbackInterface.progressChanged(
-                    progress: try FfiConverterTypeSendProgressState.read(from: &reader)
+                    progress: try FfiConverterTypeReceiveProgressState.read(from: &reader)
                 )
                 return UNIFFI_CALLBACK_SUCCESS
             }
@@ -2191,12 +2272,12 @@ private let uniffiCallbackHandlerProgressDelegate: ForeignCallback =
 
         switch method {
         case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceProgressDelegate.handleMap.remove(handle: handle)
+            FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.remove(handle: handle)
             // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
-            guard let cb = FfiConverterCallbackInterfaceProgressDelegate.handleMap.get(handle: handle) else {
+            guard let cb = FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.get(handle: handle) else {
                 out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
                 return UNIFFI_CALLBACK_UNEXPECTED_ERROR
             }
@@ -2217,17 +2298,100 @@ private let uniffiCallbackHandlerProgressDelegate: ForeignCallback =
         }
     }
 
-private func uniffiCallbackInitProgressDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_progressdelegate(uniffiCallbackHandlerProgressDelegate)
+private func uniffiCallbackInitReceiveProgressDelegate() {
+    uniffi_data_rct_ffi_fn_init_callback_receiveprogressdelegate(uniffiCallbackHandlerReceiveProgressDelegate)
 }
 
 // FfiConverter protocol for callback interfaces
-private enum FfiConverterCallbackInterfaceProgressDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<ProgressDelegate>()
+private enum FfiConverterCallbackInterfaceReceiveProgressDelegate {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<ReceiveProgressDelegate>()
 }
 
-extension FfiConverterCallbackInterfaceProgressDelegate: FfiConverter {
-    typealias SwiftType = ProgressDelegate
+extension FfiConverterCallbackInterfaceReceiveProgressDelegate: FfiConverter {
+    typealias SwiftType = ReceiveProgressDelegate
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+public protocol SendProgressDelegate: AnyObject {
+    func progressChanged(progress: SendProgressState)
+}
+
+// Declaration and FfiConverters for SendProgressDelegate Callback Interface
+
+private let uniffiCallbackHandlerSendProgressDelegate: ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+
+        func invokeProgressChanged(_ swiftCallbackInterface: SendProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+            func makeCall() throws -> Int32 {
+                swiftCallbackInterface.progressChanged(
+                    progress: try FfiConverterTypeSendProgressState.read(from: &reader)
+                )
+                return UNIFFI_CALLBACK_SUCCESS
+            }
+            return try makeCall()
+        }
+
+        switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.remove(handle: handle)
+            // Successful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            guard let cb = FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeProgressChanged(cb, argsData, argsLen, out_buf)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+        }
+    }
+
+private func uniffiCallbackInitSendProgressDelegate() {
+    uniffi_data_rct_ffi_fn_init_callback_sendprogressdelegate(uniffiCallbackHandlerSendProgressDelegate)
+}
+
+// FfiConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceSendProgressDelegate {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<SendProgressDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceSendProgressDelegate: FfiConverter {
+    typealias SwiftType = SendProgressDelegate
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -2336,8 +2500,8 @@ private struct FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate: FfiC
     }
 }
 
-private struct FfiConverterOptionCallbackInterfaceProgressDelegate: FfiConverterRustBuffer {
-    typealias SwiftType = ProgressDelegate?
+private struct FfiConverterOptionCallbackInterfaceSendProgressDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = SendProgressDelegate?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -2345,13 +2509,13 @@ private struct FfiConverterOptionCallbackInterfaceProgressDelegate: FfiConverter
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterCallbackInterfaceProgressDelegate.write(value, into: &buf)
+        FfiConverterCallbackInterfaceSendProgressDelegate.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterCallbackInterfaceProgressDelegate.read(from: &buf)
+        case 1: return try FfiConverterCallbackInterfaceSendProgressDelegate.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -2472,6 +2636,9 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_connectionrequest_get_sender() != 11619 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_data_rct_ffi_checksum_method_connectionrequest_set_progress_delegate() != 35321 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_data_rct_ffi_checksum_method_internaldiscovery_add_ble_implementation() != 43846 {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2502,7 +2669,7 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_connection() != 42361 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 851 {
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 54942 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_set_ble_connection_details() != 32984 {
@@ -2553,13 +2720,16 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_flush() != 9770 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_close() != 25937 {
+    if uniffi_data_rct_ffi_checksum_method_nativestreamdelegate_disconnect() != 28037 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_nearbyconnectiondelegate_received_connection_request() != 34830 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_method_progressdelegate_progress_changed() != 52611 {
+    if uniffi_data_rct_ffi_checksum_method_receiveprogressdelegate_progress_changed() != 20848 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_sendprogressdelegate_progress_changed() != 56763 {
         return InitializationResult.apiChecksumMismatch
     }
 
@@ -2569,7 +2739,8 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitL2CapDelegate()
     uniffiCallbackInitNativeStreamDelegate()
     uniffiCallbackInitNearbyConnectionDelegate()
-    uniffiCallbackInitProgressDelegate()
+    uniffiCallbackInitReceiveProgressDelegate()
+    uniffiCallbackInitSendProgressDelegate()
     return InitializationResult.ok
 }
 

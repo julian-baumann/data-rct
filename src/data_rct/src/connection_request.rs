@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::fmt::Debug;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -6,13 +7,30 @@ use prost_stream::Stream;
 use protocol::communication::transfer_request::Intent;
 use protocol::communication::{ClipboardTransferIntent, FileTransferIntent, TransferRequest, TransferRequestResponse};
 use protocol::discovery::Device;
+use tokio::sync::RwLock;
 use crate::encryption::EncryptedReadWrite;
 use crate::nearby::ConnectionIntentType;
+
+pub enum ReceiveProgressState {
+    Unknown,
+    Handshake,
+    Receiving { progress: f64 },
+    Cancelled,
+    Finished
+}
+pub trait ReceiveProgressDelegate: Send + Sync + Debug {
+    fn progress_changed(&self, progress: ReceiveProgressState);
+}
+
+struct SharedVariables {
+    receive_progress_delegate: Option<Box<dyn ReceiveProgressDelegate>>
+}
 
 pub struct ConnectionRequest {
     transfer_request: TransferRequest,
     connection: Arc<Mutex<Box<dyn EncryptedReadWrite>>>,
     file_storage: String,
+    variables: Arc<RwLock<SharedVariables>>
 }
 
 impl ConnectionRequest {
@@ -20,8 +38,15 @@ impl ConnectionRequest {
         return Self {
             transfer_request,
             connection: Arc::new(Mutex::new(connection)),
-            file_storage
+            file_storage,
+            variables: Arc::new(RwLock::new(SharedVariables {
+                receive_progress_delegate: None
+            }))
         }
+    }
+
+    pub fn set_progress_delegate(&self, delegate: Box<dyn ReceiveProgressDelegate>) {
+        self.variables.blocking_write().receive_progress_delegate = Some(delegate);
     }
 
     pub fn get_sender(&self) -> Device {
@@ -60,9 +85,18 @@ impl ConnectionRequest {
         let _ = stream.send(&TransferRequestResponse {
             accepted: false
         });
+
+        connection_guard.close();
+    }
+
+    fn update_progress(&self, new_state: ReceiveProgressState) {
+        if let Some(receive_progress_delegate) = &self.variables.blocking_read().receive_progress_delegate {
+            receive_progress_delegate.progress_changed(new_state);
+        }
     }
 
     pub fn accept(&self) {
+        self.update_progress(ReceiveProgressState::Handshake);
         let mut connection_guard = self.connection.lock().unwrap();
         let mut stream = Stream::new(&mut *connection_guard);
 
@@ -89,16 +123,24 @@ impl ConnectionRequest {
         let mut file = File::create(path).expect("Failed to create file");
 
         let mut buffer = [0; 1024];
+        let mut all_read = 0.0;
 
         while let Ok(read_size) = stream.read(&mut buffer) {
             if read_size == 0 {
                 break;
             }
 
+            all_read += read_size as f64;
+
             file.write_all(&buffer[..read_size])
                 .expect("Failed to write file to disk");
+
+            let progress = all_read / file_transfer.file_size as f64;
+
+            self.update_progress(ReceiveProgressState::Receiving { progress });
         }
 
-        println!("written everything");
+        stream.close();
+        self.update_progress(ReceiveProgressState::Finished);
     }
 }

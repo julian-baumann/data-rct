@@ -42,7 +42,7 @@ public class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
             return
         }
         
-        let l2capStream = L2CapStream(inputStream: channel.inputStream, outputStream: channel.outputStream)
+        let l2capStream = L2CapStream(channel: channel)
         streams.append(l2capStream)
 
         Task {

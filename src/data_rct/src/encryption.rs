@@ -6,6 +6,8 @@ use rand_core::OsRng;
 use chacha20::XChaCha20;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 
+use crate::stream::Close;
+
 pub fn generate_key() -> [u8; 32] {
     let key = XChaCha20::generate_key(&mut OsRng);
 
@@ -69,11 +71,11 @@ impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
     }
 }
 
-// impl<TStream> Close for EncryptedStream<TStream> where TStream: Close + Read + Write {
-//     fn close(self) {
-//         self.raw_stream.close();
-//     }
-// }
+impl<TStream> Close for EncryptedStream<TStream> where TStream: Close + Read + Write {
+    fn close(&self) {
+        self.raw_stream.close();
+    }
+}
 
-pub trait EncryptedReadWrite: Read + Write + Send {}
-impl<TStream> EncryptedReadWrite for EncryptedStream<TStream> where TStream : Read + Write + Send {}
+pub trait EncryptedReadWrite: Read + Write + Send + Close {}
+impl<TStream> EncryptedReadWrite for EncryptedStream<TStream> where TStream : Read + Write + Send + Close {}

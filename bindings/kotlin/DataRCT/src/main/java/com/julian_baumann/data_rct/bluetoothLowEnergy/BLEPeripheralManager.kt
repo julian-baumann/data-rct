@@ -3,14 +3,13 @@ package com.julian_baumann.data_rct.bluetoothLowEnergy
 import android.Manifest
 import android.bluetooth.*
 import android.bluetooth.le.*
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleServerImplementationDelegate
+import com.julian_baumann.data_rct.BluetoothLeConnectionInfo
 import com.julian_baumann.data_rct.InternalNearbyServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,12 +21,14 @@ class BlePermissionNotGrantedException : Exception()
 val discoveryServiceUUID: UUID = UUID.fromString("68D60EB2-8AAA-4D72-8851-BD6D64E169B7")
 val discoveryCharacteristicUUID: UUID = UUID.fromString("0BEBF3FE-9A5E-4ED1-8157-76281B3F0DA5")
 
-internal class BLEImplementation(private val context: Context, private val internalNearbyServer: InternalNearbyServer) : BleServerImplementationDelegate {
+internal class BLEPeripheralManager(private val context: Context, private val internalNearbyServer: InternalNearbyServer) : BleServerImplementationDelegate {
     private val bluetoothManager: BluetoothManager by lazy {
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     }
 
     private var bluetoothGattServer: BluetoothGattServer? = null
+    private var bluetoothL2CAPServer: BluetoothServerSocket? = null
+    private var l2CAPThread: Thread? = null
 
     private fun createService(): BluetoothGattService {
         val service = BluetoothGattService(discoveryServiceUUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
@@ -62,23 +63,6 @@ internal class BLEImplementation(private val context: Context, private val inter
         }
     }
 
-    private val bluetoothReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF)
-
-            when (state) {
-                BluetoothAdapter.STATE_ON -> {
-                    startAdvertising()
-                    startGattServer()
-                }
-                BluetoothAdapter.STATE_OFF -> {
-                    stopGattServer()
-                    stopAdvertising()
-                }
-            }
-        }
-    }
-
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             Log.i("BLE", "LE Advertise Started.")
@@ -94,7 +78,23 @@ internal class BLEImplementation(private val context: Context, private val inter
             throw BlePermissionNotGrantedException()
         }
 
-        bluetoothManager.adapter.listenUsingInsecureL2capChannel()
+        bluetoothL2CAPServer = bluetoothManager.adapter.listenUsingInsecureL2capChannel()
+
+        l2CAPThread = Thread {
+            val psm = bluetoothL2CAPServer!!.psm.toUInt()
+            internalNearbyServer.setBleConnectionDetails(BluetoothLeConnectionInfo("", psm))
+
+            while (true) {
+                val connection = bluetoothL2CAPServer!!.accept()
+                val stream = L2CAPStream(connection)
+
+                CoroutineScope(Dispatchers.Main).launch {
+                    internalNearbyServer.handleIncomingConnection(stream)
+                }
+            }
+        }
+
+        l2CAPThread!!.start()
 
         bluetoothGattServer = bluetoothManager.openGattServer(context, gattServerCallback)
         bluetoothGattServer?.addService(createService())
@@ -121,7 +121,7 @@ internal class BLEImplementation(private val context: Context, private val inter
                 .build()
 
             val data = AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addServiceUuid(ParcelUuid(discoveryServiceUUID))
                 .build()
@@ -148,8 +148,8 @@ internal class BLEImplementation(private val context: Context, private val inter
             Log.d("BLE", "Bluetooth is currently disabled...enabling")
         } else {
             Log.d("BLE", "Bluetooth enabled...starting services")
-            startAdvertising()
             startGattServer()
+            startAdvertising()
         }
     }
 

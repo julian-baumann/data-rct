@@ -1,6 +1,7 @@
 package com.julian_baumann.data_rctapp
 
 import android.Manifest
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -8,32 +9,40 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import com.julian_baumann.data_rct.*
 import com.julian_baumann.data_rctapp.ui.theme.DataRCTTheme
-import com.julian_baumann.data_rctapp.views.DeviceList
+import com.julian_baumann.data_rctapp.views.NameChangeDialog
+import com.julian_baumann.data_rctapp.views.ReceiveContentView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
-import kotlin.math.log10
-import kotlin.math.pow
 
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDelegate {
     private val devices = mutableStateListOf<Device>()
     private var nearbyServer: NearbyServer? = null
-    private var discovery: Discovery? = null
     private var currentConnectionRequest: ConnectionRequest? = null
     private var showConnectionRequest by mutableStateOf(false)
+    private var showReceivingSheet by mutableStateOf(false)
+    private var receiveProgress: ReceiveProgress? = null
+    private val userPreferencesManager = remember { UserPreferencesManager(baseContext) }
 
     private var bluetoothConnectPermissionGranted = false
     private var bluetoothAdvertisePermissionGranted = false
@@ -74,9 +83,6 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
             deviceType = 0
         )
 
-        val test = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        println(test)
-
         nearbyServer = NearbyServer(baseContext, device, this)
 
         CoroutineScope(Dispatchers.Main).launch {
@@ -106,17 +112,7 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
         showConnectionRequest = true
     }
 
-    private fun toHumanReadableSize(bytes: ULong?): String {
-        if (bytes == 0UL || bytes == null) {
-            return "0 B"
-        }
-
-        val units = arrayOf("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
-        val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
-
-        return String.format("%.2f %s", bytes.toDouble() / 1024.0.pow(digitGroups.toDouble()), units[digitGroups])
-    }
-
+    @OptIn(ExperimentalMaterial3Api::class)
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +122,17 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
         setContent {
             DataRCTTheme {
                 // A surface container using the 'background' color from the theme
-                StartView(devices)
+                StartView(userPreferencesManager)
+
+                if (showReceivingSheet && receiveProgress != null && currentConnectionRequest != null) {
+                    ModalBottomSheet(
+                        onDismissRequest = {
+                            showReceivingSheet = false
+                        }
+                    ) {
+                        ReceiveContentView(receiveProgress!!, currentConnectionRequest)
+                    }
+                }
 
                 if (showConnectionRequest && currentConnectionRequest != null) {
                     AlertDialog(
@@ -147,10 +153,13 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
                             TextButton(
                                 onClick = {
                                     showConnectionRequest = false
+                                    receiveProgress = ReceiveProgress()
+                                    currentConnectionRequest?.setProgressDelegate(receiveProgress!!)
+                                    showReceivingSheet = true
 
-                                    CoroutineScope(Dispatchers.Main).launch {
+                                    Thread {
                                         currentConnectionRequest?.accept()
-                                    }
+                                    }.start()
                                 }
                             ) {
                                 Text("Accept")
@@ -160,10 +169,7 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
                             TextButton(
                                 onClick = {
                                     showConnectionRequest = false
-
-                                    CoroutineScope(Dispatchers.Main).launch {
-                                        currentConnectionRequest?.decline()
-                                    }
+                                    currentConnectionRequest?.decline()
                                 }
                             ) {
                                 Text("Decline")
@@ -178,15 +184,13 @@ class MainActivity : ComponentActivity(), DiscoveryDelegate, NearbyConnectionDel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StartView(devices: List<Device>) {
+fun StartView(userPreferencesManager: UserPreferencesManager) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
-
-    val showConnectionRequest by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            MediumTopAppBar(
+            LargeTopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary,
@@ -198,6 +202,39 @@ fun StartView(devices: List<Device>) {
                         overflow = TextOverflow.Ellipsis
                     )
                 },
+                actions = {
+
+//                    val visibility = remember { mutableStateOf(false) }
+//                    val options = listOf("Visible", "Hidden")
+//                    val icons = listOf(
+//                        Icons.Filled.Visibility,
+//                        Icons.Filled.VisibilityOff
+//                    )
+//
+//                    SingleChoiceSegmentedButtonRow(
+//                        modifier = Modifier.padding(20.dp)
+//                    ) {
+//                        options.forEachIndexed { index, label ->
+//                            SegmentedButton(
+//                                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+//                                icon = {
+//                                    SegmentedButtonDefaults.Icon(active = index in visibility) {
+//                                        Icon(
+//                                            imageVector = icons[index],
+//                                            contentDescription = null,
+//                                            modifier = Modifier.size(SegmentedButtonDefaults.IconSize)
+//                                        )
+//                                    }
+//                                },
+//                                onClick = {
+//                                },
+//                                selected = true
+//                            ) {
+//                                Text(label)
+//                            }
+//                        }
+//                    }
+                },
                 scrollBehavior = scrollBehavior
             )
         },
@@ -206,7 +243,56 @@ fun StartView(devices: List<Device>) {
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             color = MaterialTheme.colorScheme.background
         ) {
-            DeviceList(devices)
+            Column(modifier = Modifier.padding(PaddingValues(top = 0.dp, start = 18.dp))) {
+                NameChangeDialog(userPreferencesManager = userPreferencesManager)
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Share",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .padding(bottom = 10.dp)
+                        .alpha(0.8F)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Button(
+                        onClick = { /* TODO: Handle image or video sharing */ },
+                        modifier = Modifier.weight(1f).height(60.dp),
+                        colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Image or Video")
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Button(
+                        onClick = { /* TODO: Handle file sharing */ },
+                        modifier = Modifier.weight(1f).height(60.dp),
+                        colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("File")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                FilledTonalButton(
+                    onClick = { /* TODO: Handle file sharing */ },
+                    modifier = Modifier.fillMaxWidth().height(60.dp)
+                ) {
+                    Text("Show received files")
+                }
+            }
         }
     }
 }

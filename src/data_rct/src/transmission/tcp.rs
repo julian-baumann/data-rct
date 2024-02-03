@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::{io, thread};
 use std::net::SocketAddr;
 use std::net::{TcpListener, TcpStream};
@@ -20,7 +19,7 @@ pub struct TcpServer {
 }
 
 impl TcpServer {
-    pub(crate) async fn new(delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>, file_storage: String) -> Result<TcpServer, Box<dyn Error>> {
+    pub(crate) async fn new(delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>, file_storage: String) -> Result<TcpServer, io::Error> {
         let addresses = [
             SocketAddr::from(([0, 0, 0, 0], 80)),
             SocketAddr::from(([0, 0, 0, 0], 8080)),
@@ -85,7 +84,7 @@ pub struct TcpClient {
 
 impl TcpClient {
     pub fn connect(address: SocketAddr) -> Result<TcpStream, io::Error> {
-        let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(5))?;
+        let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(2))?;
         std_stream.set_nonblocking(false).expect("Failed to set non blocking");
         // std_stream.set_nonblocking(true)?;
         // let stream = tokio::net::TcpStream::from_std(std_stream)?;
@@ -95,7 +94,7 @@ impl TcpClient {
 }
 
 impl Close for TcpStream {
-    fn close(self) {
+    fn close(&self) {
         // Do nothing. TCPStream closes automatically.
     }
 }

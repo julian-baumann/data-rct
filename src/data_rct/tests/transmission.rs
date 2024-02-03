@@ -1,7 +1,7 @@
 use std::thread;
 use data_rct::discovery::DeviceInfo;
 use data_rct::stream::DeprecatedConnectStreamErrors;
-use data_rct::transmission::{Transmission};
+use data_rct::transmission::Transmission;
 
 #[test]
 pub fn transmission_send() {

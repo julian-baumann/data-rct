@@ -7,49 +7,30 @@
 
 import Foundation
 import DataRCTFFI
+import CoreBluetooth
 
 class L2CapStream: NSObject, StreamDelegate, NativeStreamDelegate {
-    private let inputStream: InputStream
-    private let outputStream: OutputStream
+    private var channel: CBL2CAPChannel?
     
-    init(inputStream: InputStream, outputStream: OutputStream) {
-        self.inputStream = inputStream
-        self.outputStream = outputStream
+    init(channel: CBL2CAPChannel) {
+        self.channel = channel
      
         super.init()
 
-//        self.inputStream.delegate = self
-//        self.outputStream.delegate = self
-        
-        self.inputStream.schedule(in: .main, forMode: RunLoop.Mode.default)
-        self.outputStream.schedule(in: .main, forMode: RunLoop.Mode.default)
-        
-        self.inputStream.open()
-        self.outputStream.open()
+        self.channel!.inputStream.open()
+        self.channel!.outputStream.open()
     }
     
     func read(bufferLength: UInt64) -> Data {
-        print("Want to READ from L2CAP stream")
-        
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferLength))
         defer { buffer.deallocate() }
 
         var data = Data()
 
-        while inputStream.hasBytesAvailable {
-            let numberOfBytesRead = inputStream.read(buffer, maxLength: Int(bufferLength))
-            print("L2Cap Bytes read \(numberOfBytesRead)")
+        let numberOfBytesRead = channel!.inputStream.read(buffer, maxLength: Int(bufferLength))
 
-            if numberOfBytesRead < 0, let error = inputStream.streamError {
-                print(error)
-                break
-            }
-
-            if numberOfBytesRead > 0 {
-                data.append(buffer, count: numberOfBytesRead)
-            } else {
-                break
-            }
+        if numberOfBytesRead > 0 {
+            data.append(buffer, count: numberOfBytesRead)
         }
 
         return data
@@ -60,22 +41,18 @@ class L2CapStream: NSObject, StreamDelegate, NativeStreamDelegate {
     }
     
     func write(data: Data) -> UInt64 {
-        print("Want to write L2CAP bytes")
-
         var bytesWritten = 0;
 
         let _ = data.withUnsafeBytes {
-            bytesWritten = outputStream.write($0.bindMemory(to: UInt8.self).baseAddress!, maxLength: data.count)
-            print("L2Cap Bytes written \(bytesWritten)")
+            bytesWritten = channel!.outputStream.write($0.bindMemory(to: UInt8.self).baseAddress!, maxLength: data.count)
         }
-
-        print("Written \(bytesWritten) L2CAP bytes")
         
         return UInt64(bytesWritten)
     }
     
-    func close() {
-        outputStream.close()
-        inputStream.close()
+    func disconnect() {
+        channel!.outputStream.close()
+        channel!.inputStream.close()
+        channel = nil
     }
 }

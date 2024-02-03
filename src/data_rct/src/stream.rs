@@ -3,14 +3,14 @@ use std::io;
 use std::io::{Read, Write};
 
 pub trait Close {
-    fn close(self);
+    fn close(&self);
 }
 
 pub trait NativeStreamDelegate: Send + Sync + Debug {
     fn read(&self, buffer_length: u64) -> Vec<u8>;
     fn write(&self, data: Vec<u8>) -> u64;
     fn flush(&self);
-    fn close(&self);
+    fn disconnect(&self);
 }
 
 impl Read for dyn NativeStreamDelegate {
@@ -38,7 +38,7 @@ impl Write for dyn NativeStreamDelegate {
 }
 
 impl Close for Box<dyn NativeStreamDelegate> {
-    fn close(self) {
-        // Self::close(&self); TODO
+    fn close(&self) {
+        self.disconnect();
     }
 }

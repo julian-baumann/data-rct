@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use local_ip_address::local_ip;
 use prost_stream::Stream;
@@ -14,6 +14,7 @@ use protocol::communication::{FileTransferIntent, TransferRequest, TransferReque
 use protocol::communication::transfer_request::Intent;
 use protocol::discovery::{BluetoothLeConnectionInfo, Device, DeviceConnectionInfo, TcpConnectionInfo};
 use tokio::sync::oneshot::{self, Sender};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::communication::{initiate_receiver_communication, initiate_sender_communication};
@@ -24,7 +25,6 @@ use crate::encryption::{EncryptedReadWrite, EncryptedStream};
 use crate::errors::ConnectErrors;
 use crate::stream::NativeStreamDelegate;
 use crate::transmission::tcp::{TcpClient, TcpServer};
-use crate::transmission::TransmissionSetupError;
 
 pub trait BleServerImplementationDelegate: Send + Sync + Debug {
     fn start_server(&self);
@@ -35,21 +35,22 @@ pub trait L2CapDelegate: Send + Sync + Debug {
     fn open_l2cap_connection(&self, connection_id: String, peripheral_uuid: String, psm: u32);
 }
 
-pub enum SendProgressState {
-    Unknown,
-    Connecting,
-    Requesting,
-    Transferring { progress: f64 },
-    Finished,
-    Declined
-}
-
 pub enum ConnectionIntentType {
     FileTransfer,
     Clipboard
 }
 
-pub trait ProgressDelegate: Send + Sync + Debug {
+pub enum SendProgressState {
+    Unknown,
+    Connecting,
+    Requesting,
+    Transferring { progress: f64 },
+    Cancelled,
+    Finished,
+    Declined
+}
+
+pub trait SendProgressDelegate: Send + Sync + Debug {
     fn progress_changed(&self, progress: SendProgressState);
 }
 
@@ -57,15 +58,19 @@ pub trait NearbyConnectionDelegate: Send + Sync + Debug {
     fn received_connection_request(&self, request: Arc<ConnectionRequest>);
 }
 
-pub struct NearbyServer {
+pub struct NearbyServerLockedVariables {
     pub device_connection_info: DeviceConnectionInfo,
     tcp_server: Option<TcpServer>,
     ble_server_implementation: Option<Box<dyn BleServerImplementationDelegate>>,
     ble_l2_cap_client: Option<Box<dyn L2CapDelegate>>,
-    nearby_connection_delegate: Arc<Mutex<Box<dyn NearbyConnectionDelegate>>>,
+    nearby_connection_delegate: Arc<std::sync::Mutex<Box<dyn NearbyConnectionDelegate>>>,
     pub advertise: bool,
     file_storage: String,
     l2cap_connections: HashMap<String, Sender<Box<dyn NativeStreamDelegate>>>
+}
+
+pub struct NearbyServer {
+    pub variables: Arc<RwLock<NearbyServerLockedVariables>>
 }
 
 impl NearbyServer {
@@ -77,43 +82,51 @@ impl NearbyServer {
         };
 
         return Self {
-            device_connection_info,
-            tcp_server: None,
-            ble_server_implementation: None,
-            ble_l2_cap_client: None,
-            nearby_connection_delegate: Arc::new(Mutex::new(delegate)),
-            advertise: false,
-            file_storage,
-            l2cap_connections: HashMap::new()
+            variables: Arc::new(RwLock::new(NearbyServerLockedVariables {
+                device_connection_info,
+                tcp_server: None,
+                ble_server_implementation: None,
+                ble_l2_cap_client: None,
+                nearby_connection_delegate: Arc::new(std::sync::Mutex::new(delegate)),
+                advertise: false,
+                file_storage,
+                l2cap_connections: HashMap::new()
+            }))
         };
     }
 
-    pub fn add_l2_cap_client(&mut self, delegate: Box<dyn L2CapDelegate>) {
-        self.ble_l2_cap_client = Some(delegate);
+    pub fn add_l2_cap_client(&self, delegate: Box<dyn L2CapDelegate>) {
+        self.variables.blocking_write().ble_l2_cap_client = Some(delegate);
     }
 
-    pub fn add_bluetooth_implementation(&mut self, implementation: Box<dyn BleServerImplementationDelegate>) {
-        self.ble_server_implementation = Some(implementation)
+    pub fn add_bluetooth_implementation(&self, implementation: Box<dyn BleServerImplementationDelegate>) {
+        self.variables.blocking_write().ble_server_implementation = Some(implementation)
     }
 
-    pub fn change_device(&mut self, new_device: Device) {
-        self.device_connection_info.device = Some(new_device);
+    pub fn change_device(&self, new_device: Device) {
+        self.variables.blocking_write().device_connection_info.device = Some(new_device);
     }
 
-    pub fn set_bluetooth_le_details(&mut self, ble_info: BluetoothLeConnectionInfo) {
-        self.device_connection_info.ble = Some(ble_info)
+    pub fn set_bluetooth_le_details(&self, ble_info: BluetoothLeConnectionInfo) {
+        self.variables.blocking_write().device_connection_info.ble = Some(ble_info)
     }
 
-    pub fn set_tcp_details(&mut self, tcp_info: TcpConnectionInfo) {
-        self.device_connection_info.tcp = Some(tcp_info)
+    pub fn set_tcp_details(&self, tcp_info: TcpConnectionInfo) {
+        self.variables.blocking_write().device_connection_info.tcp = Some(tcp_info)
     }
 
-    pub async fn start(&mut self) -> Result<(), TransmissionSetupError> {
-        if self.tcp_server.is_none() {
-            let tcp_server = TcpServer::new(self.nearby_connection_delegate.clone(), self.file_storage.clone()).await;
+    pub async fn start(&self) {
+        println!("1");
+        if self.variables.read().await.tcp_server.is_none() {
+            println!("2");
+            let delegate = self.variables.read().await.nearby_connection_delegate.clone();
+            let file_storage = self.variables.read().await.file_storage.clone();
+            println!("3");
+            let tcp_server = TcpServer::new(delegate, file_storage).await;
             if let Ok(tcp_server) = tcp_server {
-
-                if let Ok(my_local_ip) = local_ip() {
+                println!("4");
+                let ip = local_ip();
+                if let Ok(my_local_ip) = ip {
                     println!("IP: {:?}", my_local_ip);
                     println!("Port: {:?}", tcp_server.port);
 
@@ -124,20 +137,25 @@ impl NearbyServer {
                         port: tcp_server.port as u32,
                     });
 
-                    self.tcp_server = Some(tcp_server);
+                    println!("locking 1");
+                    self.variables.write().await.tcp_server = Some(tcp_server);
+                    println!("release 1");
+                }
+                else if let Err(error) = ip {
+                    println!("Unable to obtain IP address: {:?}", error);
                 }
             } else if let Err(error) = tcp_server {
                 println!("Error trying to start TCP server: {:?}", error);
             }
         }
 
-        self.advertise = true;
+        println!("locking 2");
+        self.variables.write().await.advertise = true;
+        println!("release 2");
 
-        if let Some(ble_advertisement_implementation) = &self.ble_server_implementation {
+        if let Some(ble_advertisement_implementation) = &self.variables.read().await.ble_server_implementation {
             ble_advertisement_implementation.start_server();
         };
-
-        return Ok(());
     }
 
     async fn initiate_sender<T>(&self, raw_stream: T) -> Result<EncryptedStream<T>, ConnectErrors> where T: Read + Write {
@@ -147,9 +165,9 @@ impl NearbyServer {
         });
     }
 
-    pub fn handle_incoming_ble_connection(&mut self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
+    pub fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
         println!("handle_incoming_ble_connection {:?}", connection_id);
-        let sender = self.l2cap_connections.remove(&connection_id);
+        let sender = self.variables.blocking_write().l2cap_connections.remove(&connection_id);
 
         if let Some(sender) = sender {
             println!("Found sender");
@@ -157,7 +175,7 @@ impl NearbyServer {
         }
     }
 
-    async fn connect_tcp(&mut self, connection_details: &DeviceConnectionInfo) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
+    async fn connect_tcp(&self, connection_details: &DeviceConnectionInfo) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
         let Some(tcp_connection_details) = &connection_details.tcp else {
             return Err(ConnectErrors::FailedToGetTcpDetails);
         };
@@ -185,13 +203,17 @@ impl NearbyServer {
         return Err(ConnectErrors::FailedToOpenTcpStream);
     }
 
-    async fn connect(&mut self, device: Device) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
+    async fn connect(&self, device: Device) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
         let Some(connection_details) = Discovery::get_connection_details(device) else {
             return Err(ConnectErrors::FailedToGetConnectionDetails);
         };
 
-        if let Ok(encrypted_stream) = self.connect_tcp(&connection_details).await {
+        let encrypted_stream = self.connect_tcp(&connection_details).await;
+
+        if let Ok(encrypted_stream) = encrypted_stream {
             return Ok(encrypted_stream);
+        } else if let Err(error) = encrypted_stream {
+            println!("{:?}", error)
         }
 
         println!("Trying BLE");
@@ -200,16 +222,21 @@ impl NearbyServer {
             return Err(ConnectErrors::FailedToGetBleDetails);
         };
 
-        let Some(ble_l2cap_client) = &self.ble_l2_cap_client else {
-            return Err(ConnectErrors::InternalBleHandlerNotAvailable);
-        };
-
+        println!("opening channel");
         let id = Uuid::new_v4().to_string();
-        ble_l2cap_client.open_l2cap_connection(id.clone(), ble_connection_details.uuid.clone(), ble_connection_details.psm);
-
         let (sender, receiver) = oneshot::channel::<Box<dyn NativeStreamDelegate>>();
-        self.l2cap_connections.insert(id, sender);
 
+        println!("locking 3");
+        self.variables.write().await.l2cap_connections.insert(id.clone(), sender);
+        println!("release 3");
+
+        println!("Getting ble_l2cap_client");
+        if let Some(ble_l2cap_client) = &self.variables.read().await.ble_l2_cap_client {
+            println!("open_l2cap_connection");
+            ble_l2cap_client.open_l2cap_connection(id.clone(), ble_connection_details.uuid.clone(), ble_connection_details.psm);
+        } else {
+            return Err(ConnectErrors::InternalBleHandlerNotAvailable);
+        }
 
         println!("Awaiting receiver");
         let connection = receiver.await;
@@ -223,13 +250,13 @@ impl NearbyServer {
         return Ok(Box::new(encrypted_stream));
     }
 
-    fn update_progress(progress_delegate: &Option<Box<dyn ProgressDelegate>>, state: SendProgressState) {
+    fn update_progress(progress_delegate: &Option<Box<dyn SendProgressDelegate>>, state: SendProgressState) {
         if let Some(progress_delegate) = progress_delegate {
             progress_delegate.progress_changed(state);
         }
     }
 
-    pub async fn send_file(&mut self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn ProgressDelegate>>) -> Result<(), ConnectErrors> {
+    pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn SendProgressDelegate>>) -> Result<(), ConnectErrors> {
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Connecting);
 
         let mut encrypted_stream = match self.connect(receiver).await {
@@ -247,7 +274,7 @@ impl NearbyServer {
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Requesting);
 
         let transfer_request = TransferRequest {
-            device: self.device_connection_info.device.clone(),
+            device: self.variables.read().await.device_connection_info.device.clone(),
             intent: Some(Intent::FileTransfer(FileTransferIntent {
                 file_name: convert_os_str(filename),
                 file_size,
@@ -287,14 +314,15 @@ impl NearbyServer {
                 .expect("Failed to write file buffer");
         }
 
-        NearbyServer::update_progress(&progress_delegate, SendProgressState::Finished);
+        encrypted_stream.close();
 
+        NearbyServer::update_progress(&progress_delegate, SendProgressState::Finished);
         return Ok(());
     }
 
     pub fn handle_incoming_connection(&self, native_stream_handle: Box<dyn NativeStreamDelegate>) {
-        let delegate = self.nearby_connection_delegate.clone();
-        let file_storage = self.file_storage.clone();
+        let delegate = self.variables.blocking_read().nearby_connection_delegate.clone();
+        let file_storage = self.variables.blocking_read().file_storage.clone();
 
         thread::spawn(move || {
             let mut encrypted_stream = match initiate_receiver_communication(native_stream_handle) {
@@ -320,14 +348,14 @@ impl NearbyServer {
                 file_storage.clone()
             );
 
-            delegate.lock().expect("Failed to lock").received_connection_request(Arc::new(connection_request));
+            delegate.lock().expect("Failed to lock delegate").received_connection_request(Arc::new(connection_request));
         });
     }
 
-    pub fn stop(&mut self) {
-        self.advertise = false;
+    pub fn stop(&self) {
+        self.variables.blocking_write().advertise = false;
 
-        if let Some(ble_advertisement_implementation) = &self.ble_server_implementation {
+        if let Some(ble_advertisement_implementation) = &self.variables.blocking_read().ble_server_implementation {
             ble_advertisement_implementation.stop_server();
         }
     }

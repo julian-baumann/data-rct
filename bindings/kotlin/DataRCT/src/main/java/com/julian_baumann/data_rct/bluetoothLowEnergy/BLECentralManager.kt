@@ -104,14 +104,17 @@ class BluetoothGattCallbackTest(private val internal: InternalDiscovery, private
     }
 }
 
-class BleDiscovery(private val context: Context, private val internal: InternalDiscovery) : BleDiscoveryImplementationDelegate {
+class BLECentralManager(private val context: Context, private val internal: InternalDiscovery) : BleDiscoveryImplementationDelegate {
     private val bluetoothAdapter: BluetoothManager by lazy {
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     }
 
     private val bluetoothLeScanner = bluetoothAdapter.adapter.bluetoothLeScanner
-    private var discoveredPeripherals = mutableListOf<BluetoothDevice>()
     private var isBusy = false
+
+    public companion object {
+        var discoveredPeripherals = mutableListOf<BluetoothDevice>()
+    }
 
     override fun startScanning() {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
@@ -145,7 +148,6 @@ class BleDiscovery(private val context: Context, private val internal: InternalD
     @SuppressLint("MissingPermission")
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-
             if (!discoveredPeripherals.contains(result.device)) {
                 discoveredPeripherals.add(result.device)
                 result.device.connectGatt(context, false, BluetoothGattCallbackTest(internal, discoveredPeripherals))
