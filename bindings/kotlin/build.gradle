@@ -24,7 +24,7 @@ publishing {
             from components.findByName('release')
             version = System.getenv("VERSION")
             groupId =  "com.julian_baumann.data_rct"
-            artifactId = "DataRCT"
+            artifactId = "datarct"
         }
     }
 }
