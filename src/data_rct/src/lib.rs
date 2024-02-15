@@ -1,6 +1,3 @@
-#![feature(read_buf)]
-extern crate core;
-
 use std::ffi::OsStr;
 
 #[cfg(target_os="android")]
