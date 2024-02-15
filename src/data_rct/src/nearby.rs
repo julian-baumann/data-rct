@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::communication::{initiate_receiver_communication, initiate_sender_communication};
 use crate::connection_request::ConnectionRequest;
-use crate::convert_os_str;
+use crate::{convert_os_str, init_logger};
 use crate::discovery::Discovery;
 use crate::encryption::{EncryptedReadWrite, EncryptedStream};
 use crate::errors::ConnectErrors;
@@ -75,6 +75,8 @@ pub struct NearbyServer {
 
 impl NearbyServer {
     pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+        init_logger();
+
         let device_connection_info = DeviceConnectionInfo {
             device: Some(my_device.clone()),
             ble: None,
@@ -116,16 +118,14 @@ impl NearbyServer {
     }
 
     pub async fn start(&self) {
-        println!("1");
         if self.variables.read().await.tcp_server.is_none() {
-            println!("2");
             let delegate = self.variables.read().await.nearby_connection_delegate.clone();
             let file_storage = self.variables.read().await.file_storage.clone();
-            println!("3");
             let tcp_server = TcpServer::new(delegate, file_storage).await;
+
             if let Ok(tcp_server) = tcp_server {
-                println!("4");
                 let ip = local_ip();
+
                 if let Ok(my_local_ip) = ip {
                     println!("IP: {:?}", my_local_ip);
                     println!("Port: {:?}", tcp_server.port);
@@ -137,9 +137,7 @@ impl NearbyServer {
                         port: tcp_server.port as u32,
                     });
 
-                    println!("locking 1");
                     self.variables.write().await.tcp_server = Some(tcp_server);
-                    println!("release 1");
                 }
                 else if let Err(error) = ip {
                     println!("Unable to obtain IP address: {:?}", error);
@@ -149,9 +147,7 @@ impl NearbyServer {
             }
         }
 
-        println!("locking 2");
         self.variables.write().await.advertise = true;
-        println!("release 2");
 
         if let Some(ble_advertisement_implementation) = &self.variables.read().await.ble_server_implementation {
             ble_advertisement_implementation.start_server();
@@ -166,11 +162,9 @@ impl NearbyServer {
     }
 
     pub fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
-        println!("handle_incoming_ble_connection {:?}", connection_id);
         let sender = self.variables.blocking_write().l2cap_connections.remove(&connection_id);
 
         if let Some(sender) = sender {
-            println!("Found sender");
             let _ = sender.send(native_stream);
         }
     }
@@ -212,35 +206,29 @@ impl NearbyServer {
 
         if let Ok(encrypted_stream) = encrypted_stream {
             return Ok(encrypted_stream);
-        } else if let Err(error) = encrypted_stream {
+        }
+
+        if let Err(error) = encrypted_stream {
             println!("{:?}", error)
         }
 
-        println!("Trying BLE");
         // Use BLE if TCP fails
         let Some(ble_connection_details) = &connection_details.ble else {
             return Err(ConnectErrors::FailedToGetBleDetails);
         };
 
-        println!("opening channel");
         let id = Uuid::new_v4().to_string();
         let (sender, receiver) = oneshot::channel::<Box<dyn NativeStreamDelegate>>();
 
-        println!("locking 3");
         self.variables.write().await.l2cap_connections.insert(id.clone(), sender);
-        println!("release 3");
 
-        println!("Getting ble_l2cap_client");
         if let Some(ble_l2cap_client) = &self.variables.read().await.ble_l2_cap_client {
-            println!("open_l2cap_connection");
             ble_l2cap_client.open_l2cap_connection(id.clone(), ble_connection_details.uuid.clone(), ble_connection_details.psm);
         } else {
             return Err(ConnectErrors::InternalBleHandlerNotAvailable);
         }
 
-        println!("Awaiting receiver");
         let connection = receiver.await;
-        println!("Receiver awaited");
 
         let Ok(connection) = connection else {
             return Err(ConnectErrors::FailedToEstablishBleConnection);
@@ -300,6 +288,7 @@ impl NearbyServer {
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: 0.0 });
 
         let mut all_read: usize = 0;
+        println!("test");
 
         while let Ok(read_size) = file.read(&mut buffer) {
             if read_size == 0 {

@@ -3,8 +3,6 @@ name = "data_rct"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 protocol = { path = "../protocol" }
 crossbeam-channel = "0.5"
@@ -21,6 +19,7 @@ bytes = "1.5.0"
 futures = "0.3"
 tokio = {  version = "1.35.1", features = ["net", "io-util", "time"] }
 async-prost = "0.4.0"
-gethostname = "0.4.3"
 local-ip-address = { git = "https://github.com/julian-baumann/local-ip-address.git", branch = "main" }
 prost-stream = "0.1.2"
+android_logger = "0.13.3"
+log = "0.4.20"

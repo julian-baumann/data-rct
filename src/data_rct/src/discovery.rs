@@ -6,6 +6,7 @@ use protocol::discovery::{DeviceConnectionInfo, DeviceDiscoveryMessage, Device};
 use protocol::discovery::device_discovery_message::Content;
 use protocol::prost::Message;
 use crate::errors::DiscoverySetupError;
+use crate::init_logger;
 
 pub trait BleDiscoveryImplementationDelegate: Send + Sync + Debug {
     fn start_scanning(&self);
@@ -21,6 +22,8 @@ pub struct Discovery {
 
 impl Discovery {
     pub fn new(delegate: Option<Box<dyn DiscoveryDelegate>>) -> Result<Self, DiscoverySetupError> {
+        init_logger();
+
         DISCOVERED_DEVICES.get_or_init(|| RwLock::new(HashMap::new()));
 
         let callback_arc = match delegate {

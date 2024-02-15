@@ -119,7 +119,6 @@ impl ConnectionRequest {
         let path = path.join(&file_transfer.file_name.unwrap_or_else(|| "temp.zip".to_string()));
         let path = path.into_os_string();
 
-        println!("Creating file at {:?}", path);
         let mut file = File::create(path).expect("Failed to create file");
 
         let mut buffer = [0; 1024];
@@ -136,7 +135,6 @@ impl ConnectionRequest {
                 .expect("Failed to write file to disk");
 
             let progress = all_read / file_transfer.file_size as f64;
-
             self.update_progress(ReceiveProgressState::Receiving { progress });
         }
 

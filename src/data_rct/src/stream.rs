@@ -17,7 +17,6 @@ impl Read for dyn NativeStreamDelegate {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data = NativeStreamDelegate::read(self, buf.len() as u64);
 
-        // Make sure we do not write more data than the buffer can hold
         let len = std::cmp::min(buf.len(), data.len());
         buf[..len].copy_from_slice(&data[..len]);
 

@@ -3,6 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'idea'
     id "org.mozilla.rust-android-gradle.rust-android"
+    id "maven-publish"
 }
 
 android {
@@ -58,14 +59,6 @@ tasks.matching { it.name.matches(/merge.*JniLibFolders/) }.configureEach {
     it.inputs.dir(new File(buildDir, "rustJniLibs/android"))
     it.dependsOn("cargoBuild")
 }
-
-//tasks.configureEach {
-//    if ((this.name == "mergeDebugJniLibFolders" || this.name == "mergeReleaseJniLibFolders")) {
-//        this.dependsOn("cargoBuild")
-//        // fix mergeDebugJniLibFolders  UP-TO-DATE
-//        this.inputs.dir(buildDir.resolve("rustJniLibs/android"))
-//    }
-//}
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'

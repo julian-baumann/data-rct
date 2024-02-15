@@ -8,9 +8,7 @@ import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import com.julian_baumann.data_rct.BleServerImplementationDelegate
-import com.julian_baumann.data_rct.BluetoothLeConnectionInfo
-import com.julian_baumann.data_rct.InternalNearbyServer
+import com.julian_baumann.data_rct.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,8 +16,8 @@ import java.util.*
 
 
 class BlePermissionNotGrantedException : Exception()
-val discoveryServiceUUID: UUID = UUID.fromString("68D60EB2-8AAA-4D72-8851-BD6D64E169B7")
-val discoveryCharacteristicUUID: UUID = UUID.fromString("0BEBF3FE-9A5E-4ED1-8157-76281B3F0DA5")
+val discoveryServiceUUID: UUID = UUID.fromString(getBleServiceUuid())
+val discoveryCharacteristicUUID: UUID = UUID.fromString(getBleCharacteristicUuid())
 
 internal class BLEPeripheralManager(private val context: Context, private val internalNearbyServer: InternalNearbyServer) : BleServerImplementationDelegate {
     private val bluetoothManager: BluetoothManager by lazy {

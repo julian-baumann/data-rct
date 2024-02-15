@@ -49,7 +49,6 @@ impl TcpServer {
                     continue
                 };
 
-                println!("initiating receiver");
                 let mut encrypted_stream = match initiate_receiver_communication(tcp_stream) {
                     Ok(request) => request,
                     Err(error) => {
@@ -86,8 +85,6 @@ impl TcpClient {
     pub fn connect(address: SocketAddr) -> Result<TcpStream, io::Error> {
         let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(2))?;
         std_stream.set_nonblocking(false).expect("Failed to set non blocking");
-        // std_stream.set_nonblocking(true)?;
-        // let stream = tokio::net::TcpStream::from_std(std_stream)?;
 
         return Ok(std_stream);
     }
