@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 
+[toolchain]
+channel = "nightly"
+
 members = [
     "src/data_rct",
     "src/data_rct_ffi",
