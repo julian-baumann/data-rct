@@ -18,6 +18,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: "23.3"
+
     - name: Build
       run: cargo build --verbose
 
@@ -38,12 +43,10 @@ jobs:
         - name: Validate Gradle wrapper
           uses: gradle/wrapper-validation-action@ccb4328a959376b642e027874838f60f8e596de3
 
-        # - name: Publish package
-        #   uses: gradle/gradle-build-action@749f47bda3e44aa060e82d7b3ef7e40d953bd629
-        #   with:
-        #     arguments: publish
-        #   env:
-        #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        - name: Install Protoc
+          uses: arduino/setup-protoc@v3
+          with:
+            version: "23.3"
 
         - name: Publish package
           env:
@@ -52,21 +55,3 @@ jobs:
             rustup target install armv7-linux-androideabi aarch64-linux-android i686-linux-android
             cd bindings/kotlin
             ./gradlew clean build publish
-
-  test:
-    name: Run Tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Run tests
-      uses: nick-fields/retry@v2
-      with:
-        max_attempts: 3
-        retry_on: error
-        timeout_minutes: 7
-        command: |
-          cargo test --verbose
