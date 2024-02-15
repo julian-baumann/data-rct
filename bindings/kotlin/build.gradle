@@ -20,11 +20,11 @@ publishing {
     }
 
     publications {
-        gpr(MavenPublication) {
-            groupId = "com.julian_baumann.data_rct" as Publication
-            artifactId = "DataRCT" as Publication
-            version = System.getenv("VERSION") as Publication
-            artifact("$buildDir/outputs/aar/DataRCT-release.aar")
+        release(MavenPublication) {
+            from components.findByName('release')
+            version = System.getenv("VERSION")
+            groupId =  "com.julian_baumann.data_rct"
+            artifactId = "DataRCT"
         }
     }
 }
