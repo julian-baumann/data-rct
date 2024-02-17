@@ -45,6 +45,14 @@ android {
         // XXX: I've been trying to make this work but I can't, so the compiled bindings will show as "regular sources" in Android Studio.
         idea.module.generatedSourceDirs += file("${buildDir}/generated/source/uniffi/${variant.name}/java/uniffi")
     }
+
+    publishing {
+        singleVariant("release") {
+            // if you don't want sources/javadoc, remove these lines
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
 publishing {
@@ -58,13 +66,15 @@ publishing {
             }
         }
     }
-
     publications {
         release(MavenPublication) {
-            from components.findByName('release')
             version = System.getenv("VERSION")
             groupId =  "com.julian_baumann"
             artifactId = "data_rct"
+
+            afterEvaluate {
+                from components.release
+            }
         }
     }
 }
