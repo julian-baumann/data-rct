@@ -23,8 +23,8 @@ publishing {
         release(MavenPublication) {
             from components.findByName('release')
             version = System.getenv("VERSION")
-            groupId =  "com.julian_baumann.data_rct"
-            artifactId = "datarct"
+            groupId =  "com.julian_baumann"
+            artifactId = "data_rct"
         }
     }
 }
