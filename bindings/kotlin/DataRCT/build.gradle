@@ -47,6 +47,28 @@ android {
     }
 }
 
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/julian-baumann/data-rct")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+
+    publications {
+        release(MavenPublication) {
+            from components.findByName('release')
+            version = System.getenv("VERSION")
+            groupId =  "com.julian_baumann"
+            artifactId = "data_rct"
+        }
+    }
+}
+
 cargo {
     module  = "../../../"       // Or whatever directory contains your Cargo.toml
     libname = "data_rct_ffi"          // Or whatever matches Cargo.toml's [package] name.

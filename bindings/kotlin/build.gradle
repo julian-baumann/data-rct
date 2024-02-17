@@ -6,25 +6,3 @@ plugins {
     id "org.mozilla.rust-android-gradle.rust-android" version "0.9.3" apply false
     id 'maven-publish'
 }
-
-publishing {
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/julian-baumann/data-rct")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-    }
-
-    publications {
-        release(MavenPublication) {
-            from components.findByName('release')
-            version = System.getenv("VERSION")
-            groupId =  "com.julian_baumann"
-            artifactId = "data_rct"
-        }
-    }
-}

@@ -40,6 +40,6 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             VERSION: ${{ github.event.inputs.version }}
           run: |
-            rustup target install armv7-linux-androideabi aarch64-linux-android i686-linux-android
+            rustup target add x86_64-linux-android x86_64-unknown-linux-gnu aarch64-linux-android armv7-linux-androideabi i686-linux-android
             cd bindings/kotlin
             ./gradlew clean build publish
