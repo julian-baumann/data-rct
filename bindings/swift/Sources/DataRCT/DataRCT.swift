@@ -221,9 +221,17 @@ private enum UniffiInternalError: LocalizedError {
     }
 }
 
+private extension NSLock {
+    func withLock<T>(f: () throws -> T) rethrows -> T {
+        lock()
+        defer { self.unlock() }
+        return try f()
+    }
+}
+
 private let CALL_SUCCESS: Int8 = 0
 private let CALL_ERROR: Int8 = 1
-private let CALL_PANIC: Int8 = 2
+private let CALL_UNEXPECTED_ERROR: Int8 = 2
 private let CALL_CANCELLED: Int8 = 3
 
 private extension RustCallStatus {
@@ -277,7 +285,7 @@ private func uniffiCheckCallStatus(
             throw UniffiInternalError.unexpectedRustCallError
         }
 
-    case CALL_PANIC:
+    case CALL_UNEXPECTED_ERROR:
         // When the rust code sees a panic, it tries to construct a RustBuffer
         // with the message.  But if that code panics, then it just sends back
         // an empty buffer.
@@ -293,6 +301,70 @@ private func uniffiCheckCallStatus(
 
     default:
         throw UniffiInternalError.unexpectedRustCallStatusCode
+    }
+}
+
+private func uniffiTraitInterfaceCall<T>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> Void
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+
+private func uniffiTraitInterfaceCallWithError<T, E>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> Void,
+    lowerError: (E) -> RustBuffer
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch let error as E {
+        callStatus.pointee.code = CALL_ERROR
+        callStatus.pointee.errorBuf = lowerError(error)
+    } catch {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+
+private class UniffiHandleMap<T> {
+    private var map: [UInt64: T] = [:]
+    private let lock = NSLock()
+    private var currentHandle: UInt64 = 1
+
+    func insert(obj: T) -> UInt64 {
+        lock.withLock {
+            let handle = currentHandle
+            currentHandle += 1
+            map[handle] = obj
+            return handle
+        }
+    }
+
+    func get(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
+    }
+
+    @discardableResult
+    func remove(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map.removeValue(forKey: handle) else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
     }
 }
 
@@ -440,16 +512,30 @@ public protocol ConnectionRequestProtocol: AnyObject {
     func setProgressDelegate(delegate: ReceiveProgressDelegate)
 }
 
-public class ConnectionRequest:
+open class ConnectionRequest:
     ConnectionRequestProtocol
 {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    public required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer _: NoPointer) {
+        pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -460,21 +546,21 @@ public class ConnectionRequest:
         try! rustCall { uniffi_data_rct_ffi_fn_free_connectionrequest(pointer, $0) }
     }
 
-    public func accept() {
+    open func accept() {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_connectionrequest_accept(self.uniffiClonePointer(), $0)
             }
     }
 
-    public func decline() {
+    open func decline() {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_connectionrequest_decline(self.uniffiClonePointer(), $0)
             }
     }
 
-    public func getClipboardIntent() -> ClipboardTransferIntent? {
+    open func getClipboardIntent() -> ClipboardTransferIntent? {
         return try! FfiConverterOptionTypeClipboardTransferIntent.lift(
             try!
                 rustCall {
@@ -483,7 +569,7 @@ public class ConnectionRequest:
         )
     }
 
-    public func getFileTransferIntent() -> FileTransferIntent? {
+    open func getFileTransferIntent() -> FileTransferIntent? {
         return try! FfiConverterOptionTypeFileTransferIntent.lift(
             try!
                 rustCall {
@@ -492,7 +578,7 @@ public class ConnectionRequest:
         )
     }
 
-    public func getIntentType() -> ConnectionIntentType {
+    open func getIntentType() -> ConnectionIntentType {
         return try! FfiConverterTypeConnectionIntentType.lift(
             try!
                 rustCall {
@@ -501,7 +587,7 @@ public class ConnectionRequest:
         )
     }
 
-    public func getSender() -> Device {
+    open func getSender() -> Device {
         return try! FfiConverterTypeDevice.lift(
             try!
                 rustCall {
@@ -510,7 +596,7 @@ public class ConnectionRequest:
         )
     }
 
-    public func setProgressDelegate(delegate: ReceiveProgressDelegate) {
+    open func setProgressDelegate(delegate: ReceiveProgressDelegate) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_connectionrequest_set_progress_delegate(self.uniffiClonePointer(),
@@ -567,16 +653,30 @@ public protocol InternalDiscoveryProtocol: AnyObject {
     func stop()
 }
 
-public class InternalDiscovery:
+open class InternalDiscovery:
     InternalDiscoveryProtocol
 {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    public required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer _: NoPointer) {
+        pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -595,7 +695,7 @@ public class InternalDiscovery:
         try! rustCall { uniffi_data_rct_ffi_fn_free_internaldiscovery(pointer, $0) }
     }
 
-    public func addBleImplementation(implementation: BleDiscoveryImplementationDelegate) {
+    open func addBleImplementation(implementation: BleDiscoveryImplementationDelegate) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internaldiscovery_add_ble_implementation(self.uniffiClonePointer(),
@@ -603,7 +703,7 @@ public class InternalDiscovery:
             }
     }
 
-    public func parseDiscoveryMessage(data: Data, bleUuid: String?) {
+    open func parseDiscoveryMessage(data: Data, bleUuid: String?) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internaldiscovery_parse_discovery_message(self.uniffiClonePointer(),
@@ -612,14 +712,14 @@ public class InternalDiscovery:
             }
     }
 
-    public func start() {
+    open func start() {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internaldiscovery_start(self.uniffiClonePointer(), $0)
             }
     }
 
-    public func stop() {
+    open func stop() {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internaldiscovery_stop(self.uniffiClonePointer(), $0)
@@ -689,16 +789,30 @@ public protocol InternalNearbyServerProtocol: AnyObject {
     func stop() async
 }
 
-public class InternalNearbyServer:
+open class InternalNearbyServer:
     InternalNearbyServerProtocol
 {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    public required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer _: NoPointer) {
+        pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -719,7 +833,7 @@ public class InternalNearbyServer:
         try! rustCall { uniffi_data_rct_ffi_fn_free_internalnearbyserver(pointer, $0) }
     }
 
-    public func addBleImplementation(bleImplementation: BleServerImplementationDelegate) {
+    open func addBleImplementation(bleImplementation: BleServerImplementationDelegate) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_ble_implementation(self.uniffiClonePointer(),
@@ -727,7 +841,7 @@ public class InternalNearbyServer:
             }
     }
 
-    public func addL2CapClient(delegate: L2CapDelegate) {
+    open func addL2CapClient(delegate: L2CapDelegate) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_l2_cap_client(self.uniffiClonePointer(),
@@ -735,7 +849,7 @@ public class InternalNearbyServer:
             }
     }
 
-    public func changeDevice(newDevice: Device) {
+    open func changeDevice(newDevice: Device) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_change_device(self.uniffiClonePointer(),
@@ -743,7 +857,7 @@ public class InternalNearbyServer:
             }
     }
 
-    public func getAdvertisementData() async -> Data {
+    open func getAdvertisementData() async -> Data {
         return try! await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_get_advertisement_data(
@@ -758,7 +872,7 @@ public class InternalNearbyServer:
         )
     }
 
-    public func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate) async {
+    open func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate) async {
         return try! await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_ble_connection(
@@ -775,7 +889,7 @@ public class InternalNearbyServer:
         )
     }
 
-    public func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) async {
+    open func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) async {
         return try! await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_connection(
@@ -791,7 +905,7 @@ public class InternalNearbyServer:
         )
     }
 
-    public func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws {
+    open func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws {
         return try await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_send_file(
@@ -809,7 +923,7 @@ public class InternalNearbyServer:
         )
     }
 
-    public func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo) {
+    open func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_set_ble_connection_details(self.uniffiClonePointer(),
@@ -817,7 +931,7 @@ public class InternalNearbyServer:
             }
     }
 
-    public func setTcpDetails(tcpDetails: TcpConnectionInfo) {
+    open func setTcpDetails(tcpDetails: TcpConnectionInfo) {
         try!
             rustCall {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_set_tcp_details(self.uniffiClonePointer(),
@@ -825,7 +939,7 @@ public class InternalNearbyServer:
             }
     }
 
-    public func start() async {
+    open func start() async {
         return try! await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_start(
@@ -840,7 +954,7 @@ public class InternalNearbyServer:
         )
     }
 
-    public func stop() async {
+    open func stop() async {
         return try! await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_stop(
@@ -1553,63 +1667,6 @@ public protocol BleDiscoveryImplementationDelegate: AnyObject {
     func stopScanning()
 }
 
-private extension NSLock {
-    func withLock<T>(f: () throws -> T) rethrows -> T {
-        lock()
-        defer { self.unlock() }
-        return try f()
-    }
-}
-
-private typealias UniFFICallbackHandle = UInt64
-private class UniFFICallbackHandleMap<T> {
-    private var leftMap: [UniFFICallbackHandle: T] = [:]
-    private var counter: [UniFFICallbackHandle: UInt64] = [:]
-    private var rightMap: [ObjectIdentifier: UniFFICallbackHandle] = [:]
-
-    private let lock = NSLock()
-    private var currentHandle: UniFFICallbackHandle = 1
-    private let stride: UniFFICallbackHandle = 1
-
-    func insert(obj: T) -> UniFFICallbackHandle {
-        lock.withLock {
-            let id = ObjectIdentifier(obj as AnyObject)
-            let handle = rightMap[id] ?? {
-                currentHandle += stride
-                let handle = currentHandle
-                leftMap[handle] = obj
-                rightMap[id] = handle
-                return handle
-            }()
-            counter[handle] = (counter[handle] ?? 0) + 1
-            return handle
-        }
-    }
-
-    func get(handle: UniFFICallbackHandle) -> T? {
-        lock.withLock {
-            leftMap[handle]
-        }
-    }
-
-    func delete(handle: UniFFICallbackHandle) {
-        remove(handle: handle)
-    }
-
-    @discardableResult
-    func remove(handle: UniFFICallbackHandle) -> T? {
-        lock.withLock {
-            defer { counter[handle] = (counter[handle] ?? 1) - 1 }
-            guard counter[handle] == 1 else { return leftMap[handle] }
-            let obj = leftMap.removeValue(forKey: handle)
-            if let obj = obj {
-                rightMap.removeValue(forKey: ObjectIdentifier(obj as AnyObject))
-            }
-            return obj
-        }
-    }
-}
-
 // Magic number for the Rust proxy to call using the same mechanism as every other method,
 // to free the callback once it's dropped by Rust.
 private let IDX_CALLBACK_FREE: Int32 = 0
@@ -1618,95 +1675,89 @@ private let UNIFFI_CALLBACK_SUCCESS: Int32 = 0
 private let UNIFFI_CALLBACK_ERROR: Int32 = 1
 private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 
-// Declaration and FfiConverters for BleDiscoveryImplementationDelegate Callback Interface
-
-private let uniffiCallbackHandlerBleDiscoveryImplementationDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeStartScanning(_ swiftCallbackInterface: BleDiscoveryImplementationDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.startScanning(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeStopScanning(_ swiftCallbackInterface: BleDiscoveryImplementationDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.stopScanning(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceBleDiscoveryImplementationDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceBleDiscoveryImplementationDelegate = .init(
+        startScanning: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BleDiscoveryImplementationDelegate
             do {
-                return try invokeStartScanning(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeStopScanning(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.startScanning(
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        stopScanning: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BleDiscoveryImplementationDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.stopScanning(
+            ) }
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface BleDiscoveryImplementationDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitBleDiscoveryImplementationDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_blediscoveryimplementationdelegate(uniffiCallbackHandlerBleDiscoveryImplementationDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_blediscoveryimplementationdelegate(&UniffiCallbackInterfaceBleDiscoveryImplementationDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<BleDiscoveryImplementationDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<BleDiscoveryImplementationDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate: FfiConverter {
     typealias SwiftType = BleDiscoveryImplementationDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -1721,95 +1772,89 @@ public protocol BleServerImplementationDelegate: AnyObject {
     func stopServer()
 }
 
-// Declaration and FfiConverters for BleServerImplementationDelegate Callback Interface
-
-private let uniffiCallbackHandlerBleServerImplementationDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeStartServer(_ swiftCallbackInterface: BleServerImplementationDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.startServer(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeStopServer(_ swiftCallbackInterface: BleServerImplementationDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.stopServer(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceBleServerImplementationDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceBleServerImplementationDelegate = .init(
+        startServer: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BleServerImplementationDelegate
             do {
-                return try invokeStartServer(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeStopServer(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.startServer(
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        stopServer: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BleServerImplementationDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.stopServer(
+            ) }
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceBleServerImplementationDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface BleServerImplementationDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitBleServerImplementationDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_bleserverimplementationdelegate(uniffiCallbackHandlerBleServerImplementationDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_bleserverimplementationdelegate(&UniffiCallbackInterfaceBleServerImplementationDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceBleServerImplementationDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<BleServerImplementationDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<BleServerImplementationDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceBleServerImplementationDelegate: FfiConverter {
     typealias SwiftType = BleServerImplementationDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -1824,99 +1869,93 @@ public protocol DeviceListUpdateDelegate: AnyObject {
     func deviceRemoved(deviceId: String)
 }
 
-// Declaration and FfiConverters for DeviceListUpdateDelegate Callback Interface
-
-private let uniffiCallbackHandlerDeviceListUpdateDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeDeviceAdded(_ swiftCallbackInterface: DeviceListUpdateDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.deviceAdded(
-                    value: try FfiConverterTypeDevice.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeDeviceRemoved(_ swiftCallbackInterface: DeviceListUpdateDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.deviceRemoved(
-                    deviceId: try FfiConverterString.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceDeviceListUpdateDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceDeviceListUpdateDelegate = .init(
+        deviceAdded: { (
+            uniffiHandle: UInt64,
+            value: RustBuffer,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: DeviceListUpdateDelegate
             do {
-                return try invokeDeviceAdded(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeDeviceRemoved(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.deviceAdded(
+                value: try FfiConverterTypeDevice.lift(value)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        deviceRemoved: { (
+            uniffiHandle: UInt64,
+            deviceId: RustBuffer,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: DeviceListUpdateDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.deviceRemoved(
+                deviceId: try FfiConverterString.lift(deviceId)
+            ) }
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceDeviceListUpdateDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface DeviceListUpdateDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitDeviceListUpdateDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_devicelistupdatedelegate(uniffiCallbackHandlerDeviceListUpdateDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_devicelistupdatedelegate(&UniffiCallbackInterfaceDeviceListUpdateDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceDeviceListUpdateDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<DeviceListUpdateDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<DeviceListUpdateDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceDeviceListUpdateDelegate: FfiConverter {
     typealias SwiftType = DeviceListUpdateDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -1929,79 +1968,72 @@ public protocol L2CapDelegate: AnyObject {
     func openL2capConnection(connectionId: String, peripheralUuid: String, psm: UInt32)
 }
 
-// Declaration and FfiConverters for L2CapDelegate Callback Interface
-
-private let uniffiCallbackHandlerL2CapDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeOpenL2capConnection(_ swiftCallbackInterface: L2CapDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.openL2capConnection(
-                    connectionId: try FfiConverterString.read(from: &reader),
-                    peripheralUuid: try FfiConverterString.read(from: &reader),
-                    psm: try FfiConverterUInt32.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceL2CapDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceL2CapDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceL2CapDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceL2CapDelegate = .init(
+        openL2capConnection: { (
+            uniffiHandle: UInt64,
+            connectionId: RustBuffer,
+            peripheralUuid: RustBuffer,
+            psm: UInt32,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: L2CapDelegate
             do {
-                return try invokeOpenL2capConnection(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceL2CapDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
+            let makeCall = { uniffiObj.openL2capConnection(
+                connectionId: try FfiConverterString.lift(connectionId),
+                peripheralUuid: try FfiConverterString.lift(peripheralUuid),
+                psm: try FfiConverterUInt32.lift(psm)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceL2CapDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface L2CapDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitL2CapDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_l2capdelegate(uniffiCallbackHandlerL2CapDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_l2capdelegate(&UniffiCallbackInterfaceL2CapDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceL2CapDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<L2CapDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<L2CapDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceL2CapDelegate: FfiConverter {
     typealias SwiftType = L2CapDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -2020,145 +2052,139 @@ public protocol NativeStreamDelegate: AnyObject {
     func disconnect()
 }
 
-// Declaration and FfiConverters for NativeStreamDelegate Callback Interface
-
-private let uniffiCallbackHandlerNativeStreamDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeWrite(_ swiftCallbackInterface: NativeStreamDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                let result = swiftCallbackInterface.write(
-                    data: try FfiConverterData.read(from: &reader)
-                )
-                var writer = [UInt8]()
-                FfiConverterUInt64.write(result, into: &writer)
-                out_buf.pointee = RustBuffer(bytes: writer)
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeRead(_ swiftCallbackInterface: NativeStreamDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                let result = swiftCallbackInterface.read(
-                    bufferLength: try FfiConverterUInt64.read(from: &reader)
-                )
-                var writer = [UInt8]()
-                FfiConverterData.write(result, into: &writer)
-                out_buf.pointee = RustBuffer(bytes: writer)
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeFlush(_ swiftCallbackInterface: NativeStreamDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.flush(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        func invokeDisconnect(_ swiftCallbackInterface: NativeStreamDelegate, _: UnsafePointer<UInt8>, _: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.disconnect(
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceNativeStreamDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceNativeStreamDelegate = .init(
+        write: { (
+            uniffiHandle: UInt64,
+            data: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<UInt64>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NativeStreamDelegate
             do {
-                return try invokeWrite(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeRead(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-        case 3:
-            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeFlush(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-        case 4:
-            guard let cb = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeDisconnect(cb, argsData, argsLen, out_buf)
-            } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.write(
+                data: try FfiConverterData.lift(data)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterUInt64.lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        read: { (
+            uniffiHandle: UInt64,
+            bufferLength: UInt64,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NativeStreamDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.read(
+                bufferLength: try FfiConverterUInt64.lift(bufferLength)
+            ) }
+
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterData.lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        flush: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NativeStreamDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.flush(
+            ) }
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        disconnect: { (
+            uniffiHandle: UInt64,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NativeStreamDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.disconnect(
+            ) }
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceNativeStreamDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface NativeStreamDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitNativeStreamDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_nativestreamdelegate(uniffiCallbackHandlerNativeStreamDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_nativestreamdelegate(&UniffiCallbackInterfaceNativeStreamDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceNativeStreamDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<NativeStreamDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<NativeStreamDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceNativeStreamDelegate: FfiConverter {
     typealias SwiftType = NativeStreamDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -2171,77 +2197,68 @@ public protocol NearbyConnectionDelegate: AnyObject {
     func receivedConnectionRequest(request: ConnectionRequest)
 }
 
-// Declaration and FfiConverters for NearbyConnectionDelegate Callback Interface
-
-private let uniffiCallbackHandlerNearbyConnectionDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeReceivedConnectionRequest(_ swiftCallbackInterface: NearbyConnectionDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.receivedConnectionRequest(
-                    request: try FfiConverterTypeConnectionRequest.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceNearbyConnectionDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceNearbyConnectionDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceNearbyConnectionDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceNearbyConnectionDelegate = .init(
+        receivedConnectionRequest: { (
+            uniffiHandle: UInt64,
+            request: UnsafeMutableRawPointer,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NearbyConnectionDelegate
             do {
-                return try invokeReceivedConnectionRequest(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceNearbyConnectionDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
+            let makeCall = { uniffiObj.receivedConnectionRequest(
+                request: try FfiConverterTypeConnectionRequest.lift(request)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceNearbyConnectionDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface NearbyConnectionDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitNearbyConnectionDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_nearbyconnectiondelegate(uniffiCallbackHandlerNearbyConnectionDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_nearbyconnectiondelegate(&UniffiCallbackInterfaceNearbyConnectionDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceNearbyConnectionDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<NearbyConnectionDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<NearbyConnectionDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceNearbyConnectionDelegate: FfiConverter {
     typealias SwiftType = NearbyConnectionDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -2254,77 +2271,68 @@ public protocol ReceiveProgressDelegate: AnyObject {
     func progressChanged(progress: ReceiveProgressState)
 }
 
-// Declaration and FfiConverters for ReceiveProgressDelegate Callback Interface
-
-private let uniffiCallbackHandlerReceiveProgressDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeProgressChanged(_ swiftCallbackInterface: ReceiveProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.progressChanged(
-                    progress: try FfiConverterTypeReceiveProgressState.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceReceiveProgressDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceReceiveProgressDelegate = .init(
+        progressChanged: { (
+            uniffiHandle: UInt64,
+            progress: RustBuffer,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ReceiveProgressDelegate
             do {
-                return try invokeProgressChanged(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
+            let makeCall = { uniffiObj.progressChanged(
+                progress: try FfiConverterTypeReceiveProgressState.lift(progress)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceReceiveProgressDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface ReceiveProgressDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitReceiveProgressDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_receiveprogressdelegate(uniffiCallbackHandlerReceiveProgressDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_receiveprogressdelegate(&UniffiCallbackInterfaceReceiveProgressDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceReceiveProgressDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<ReceiveProgressDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<ReceiveProgressDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceReceiveProgressDelegate: FfiConverter {
     typealias SwiftType = ReceiveProgressDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -2337,77 +2345,68 @@ public protocol SendProgressDelegate: AnyObject {
     func progressChanged(progress: SendProgressState)
 }
 
-// Declaration and FfiConverters for SendProgressDelegate Callback Interface
-
-private let uniffiCallbackHandlerSendProgressDelegate: ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-
-        func invokeProgressChanged(_ swiftCallbackInterface: SendProgressDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-            var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-            func makeCall() throws -> Int32 {
-                swiftCallbackInterface.progressChanged(
-                    progress: try FfiConverterTypeSendProgressState.read(from: &reader)
-                )
-                return UNIFFI_CALLBACK_SUCCESS
-            }
-            return try makeCall()
-        }
-
-        switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+// Put the implementation in a struct so we don't pollute the top-level namespace
+private enum UniffiCallbackInterfaceSendProgressDelegate {
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceSendProgressDelegate = .init(
+        progressChanged: { (
+            uniffiHandle: UInt64,
+            progress: RustBuffer,
+            _: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SendProgressDelegate
             do {
-                return try invokeProgressChanged(cb, argsData, argsLen, out_buf)
+                try uniffiObj = FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.get(handle: uniffiHandle)
             } catch {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
+            let makeCall = { uniffiObj.progressChanged(
+                progress: try FfiConverterTypeSendProgressState.lift(progress)
+            ) }
 
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) in
+            let result = try? FfiConverterCallbackInterfaceSendProgressDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface SendProgressDelegate: handle missing in uniffiFree")
+            }
         }
-    }
+    )
+}
 
 private func uniffiCallbackInitSendProgressDelegate() {
-    uniffi_data_rct_ffi_fn_init_callback_sendprogressdelegate(uniffiCallbackHandlerSendProgressDelegate)
+    uniffi_data_rct_ffi_fn_init_callback_vtable_sendprogressdelegate(&UniffiCallbackInterfaceSendProgressDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 private enum FfiConverterCallbackInterfaceSendProgressDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<SendProgressDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<SendProgressDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceSendProgressDelegate: FfiConverter {
     typealias SwiftType = SendProgressDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -2524,11 +2523,13 @@ private struct FfiConverterOptionCallbackInterfaceSendProgressDelegate: FfiConve
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
+private let uniffiContinuationHandleMap = UniffiHandleMap<UnsafeContinuation<Int8, Never>>()
+
 private func uniffiRustCallAsync<F, T>(
-    rustFutureFunc: () -> UnsafeMutableRawPointer,
-    pollFunc: (UnsafeMutableRawPointer, @escaping UniFfiRustFutureContinuation, UnsafeMutableRawPointer) -> Void,
-    completeFunc: (UnsafeMutableRawPointer, UnsafeMutablePointer<RustCallStatus>) -> F,
-    freeFunc: (UnsafeMutableRawPointer) -> Void,
+    rustFutureFunc: () -> UInt64,
+    pollFunc: (UInt64, @escaping UniffiRustFutureContinuationCallback, UInt64) -> Void,
+    completeFunc: (UInt64, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UInt64) -> Void,
     liftFunc: (F) throws -> T,
     errorHandler: ((RustBuffer) throws -> Error)?
 ) async throws -> T {
@@ -2542,7 +2543,11 @@ private func uniffiRustCallAsync<F, T>(
     var pollResult: Int8
     repeat {
         pollResult = await withUnsafeContinuation {
-            pollFunc(rustFuture, uniffiFutureContinuationCallback, ContinuationHolder($0).toOpaque())
+            pollFunc(
+                rustFuture,
+                uniffiFutureContinuationCallback,
+                uniffiContinuationHandleMap.insert(obj: $0)
+            )
         }
     } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
 
@@ -2554,29 +2559,11 @@ private func uniffiRustCallAsync<F, T>(
 
 // Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
 // lift the return value or error and resume the suspended function.
-private func uniffiFutureContinuationCallback(ptr: UnsafeMutableRawPointer, pollResult: Int8) {
-    ContinuationHolder.fromOpaque(ptr).resume(pollResult)
-}
-
-// Wraps UnsafeContinuation in a class so that we can use reference counting when passing it across
-// the FFI
-private class ContinuationHolder {
-    let continuation: UnsafeContinuation<Int8, Never>
-
-    init(_ continuation: UnsafeContinuation<Int8, Never>) {
-        self.continuation = continuation
-    }
-
-    func resume(_ pollResult: Int8) {
+private func uniffiFutureContinuationCallback(handle: UInt64, pollResult: Int8) {
+    if let continuation = try? uniffiContinuationHandleMap.remove(handle: handle) {
         continuation.resume(returning: pollResult)
-    }
-
-    func toOpaque() -> UnsafeMutableRawPointer {
-        return Unmanaged<ContinuationHolder>.passRetained(self).toOpaque()
-    }
-
-    static func fromOpaque(_ ptr: UnsafeRawPointer) -> ContinuationHolder {
-        return Unmanaged<ContinuationHolder>.fromOpaque(ptr).takeRetainedValue()
+    } else {
+        print("uniffiFutureContinuationCallback invalid handle")
     }
 }
 
@@ -2606,7 +2593,7 @@ private enum InitializationResult {
 // the code inside is only computed once.
 private var initializationResult: InitializationResult {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 25
+    let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_data_rct_ffi_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
