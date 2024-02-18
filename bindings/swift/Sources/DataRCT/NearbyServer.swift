@@ -83,9 +83,8 @@ public class NearbyServer {
         try await internalHandler.sendFile(receiver: device, filePath: url, progressDelegate: progress)
     }
     
-    public func stop() async throws {
+    public func stop() throws {
         try bleServer.ensureValidState()
-
-        await internalHandler.stop()
+        internalHandler.stop()
     }
 }

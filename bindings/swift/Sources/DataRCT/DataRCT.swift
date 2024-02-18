@@ -765,7 +765,29 @@ public func FfiConverterTypeInternalDiscovery_lower(_ value: InternalDiscovery) 
     return FfiConverterTypeInternalDiscovery.lower(value)
 }
 
-public protocol InternalNearbyServerProtocol: AnyObject {}
+public protocol InternalNearbyServerProtocol: AnyObject {
+    func addBleImplementation(bleImplementation: BleServerImplementationDelegate)
+
+    func addL2CapClient(delegate: L2CapDelegate)
+
+    func changeDevice(newDevice: Device)
+
+    func getAdvertisementData() async -> Data
+
+    func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate)
+
+    func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate)
+
+    func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws
+
+    func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo)
+
+    func setTcpDetails(tcpDetails: TcpConnectionInfo)
+
+    func start() async
+
+    func stop()
+}
 
 open class InternalNearbyServer:
     InternalNearbyServerProtocol
@@ -797,8 +819,130 @@ open class InternalNearbyServer:
         return try! rustCall { uniffi_data_rct_ffi_fn_clone_internalnearbyserver(self.pointer, $0) }
     }
 
+    public convenience init(myDevice: Device, fileStorage: String, delegate: NearbyConnectionDelegate) {
+        self.init(unsafeFromRawPointer: try! rustCall {
+            uniffi_data_rct_ffi_fn_constructor_internalnearbyserver_new(
+                FfiConverterTypeDevice.lower(myDevice),
+                FfiConverterString.lower(fileStorage),
+                FfiConverterCallbackInterfaceNearbyConnectionDelegate.lower(delegate), $0
+            )
+        })
+    }
+
     deinit {
         try! rustCall { uniffi_data_rct_ffi_fn_free_internalnearbyserver(pointer, $0) }
+    }
+
+    open func addBleImplementation(bleImplementation: BleServerImplementationDelegate) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_ble_implementation(self.uniffiClonePointer(),
+                                                                                          FfiConverterCallbackInterfaceBleServerImplementationDelegate.lower(bleImplementation), $0)
+            }
+    }
+
+    open func addL2CapClient(delegate: L2CapDelegate) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_add_l2_cap_client(self.uniffiClonePointer(),
+                                                                                     FfiConverterCallbackInterfaceL2CapDelegate.lower(delegate), $0)
+            }
+    }
+
+    open func changeDevice(newDevice: Device) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_change_device(self.uniffiClonePointer(),
+                                                                                 FfiConverterTypeDevice.lower(newDevice), $0)
+            }
+    }
+
+    open func getAdvertisementData() async -> Data {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_get_advertisement_data(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterData.lift,
+            errorHandler: nil
+        )
+    }
+
+    open func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_ble_connection(self.uniffiClonePointer(),
+                                                                                                  FfiConverterString.lower(connectionId),
+                                                                                                  FfiConverterCallbackInterfaceNativeStreamDelegate.lower(nativeStream), $0)
+            }
+    }
+
+    open func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_connection(self.uniffiClonePointer(),
+                                                                                              FfiConverterCallbackInterfaceNativeStreamDelegate.lower(nativeStreamHandle), $0)
+            }
+    }
+
+    open func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws {
+        return try await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_send_file(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeDevice.lower(receiver),
+                    FfiConverterString.lower(filePath),
+                    FfiConverterOptionCallbackInterfaceSendProgressDelegate.lower(progressDelegate)
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeConnectErrors.lift
+        )
+    }
+
+    open func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_set_ble_connection_details(self.uniffiClonePointer(),
+                                                                                              FfiConverterTypeBluetoothLeConnectionInfo.lower(bleDetails), $0)
+            }
+    }
+
+    open func setTcpDetails(tcpDetails: TcpConnectionInfo) {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_set_tcp_details(self.uniffiClonePointer(),
+                                                                                   FfiConverterTypeTcpConnectionInfo.lower(tcpDetails), $0)
+            }
+    }
+
+    open func start() async {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_start(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+        )
+    }
+
+    open func stop() {
+        try!
+            rustCall {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_stop(self.uniffiClonePointer(), $0)
+            }
     }
 }
 
@@ -1124,27 +1268,29 @@ public func FfiConverterTypeTcpConnectionInfo_lower(_ value: TcpConnectionInfo) 
     return FfiConverterTypeTcpConnectionInfo.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum ConnectErrors {
-    case unreachable
-    case failedToGetConnectionDetails
-    case declined
-    case failedToGetTcpDetails
-    case failedToGetSocketAddress
-    case failedToOpenTcpStream
-    case failedToEncryptStream(
+    case Unreachable
+    case FailedToGetConnectionDetails
+    case Declined
+    case FailedToGetTcpDetails
+    case FailedToGetSocketAddress
+    case FailedToOpenTcpStream
+    case FailedToEncryptStream(
         error: String
     )
-    case failedToDetermineFileSize(
+    case FailedToDetermineFileSize(
         error: String
     )
-    case failedToGetTransferRequestResponse(
+    case FailedToGetTransferRequestResponse(
         error: String
     )
-    case failedToGetBleDetails
-    case internalBleHandlerNotAvailable
-    case failedToEstablishBleConnection
+    case FailedToGetBleDetails
+    case InternalBleHandlerNotAvailable
+    case FailedToEstablishBleConnection
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeConnectErrors.lift(error)
+    }
 }
 
 public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
@@ -1153,35 +1299,24 @@ public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectErrors {
         let variant: Int32 = try readInt(&buf)
         switch variant {
-        case 1: return .unreachable
-
-        case 2: return .failedToGetConnectionDetails
-
-        case 3: return .declined
-
-        case 4: return .failedToGetTcpDetails
-
-        case 5: return .failedToGetSocketAddress
-
-        case 6: return .failedToOpenTcpStream
-
-        case 7: return .failedToEncryptStream(
+        case 1: return .Unreachable
+        case 2: return .FailedToGetConnectionDetails
+        case 3: return .Declined
+        case 4: return .FailedToGetTcpDetails
+        case 5: return .FailedToGetSocketAddress
+        case 6: return .FailedToOpenTcpStream
+        case 7: return .FailedToEncryptStream(
                 error: try FfiConverterString.read(from: &buf)
             )
-
-        case 8: return .failedToDetermineFileSize(
+        case 8: return .FailedToDetermineFileSize(
                 error: try FfiConverterString.read(from: &buf)
             )
-
-        case 9: return .failedToGetTransferRequestResponse(
+        case 9: return .FailedToGetTransferRequestResponse(
                 error: try FfiConverterString.read(from: &buf)
             )
-
-        case 10: return .failedToGetBleDetails
-
-        case 11: return .internalBleHandlerNotAvailable
-
-        case 12: return .failedToEstablishBleConnection
+        case 10: return .FailedToGetBleDetails
+        case 11: return .InternalBleHandlerNotAvailable
+        case 12: return .FailedToEstablishBleConnection
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1189,57 +1324,51 @@ public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
 
     public static func write(_ value: ConnectErrors, into buf: inout [UInt8]) {
         switch value {
-        case .unreachable:
+        case .Unreachable:
             writeInt(&buf, Int32(1))
 
-        case .failedToGetConnectionDetails:
+        case .FailedToGetConnectionDetails:
             writeInt(&buf, Int32(2))
 
-        case .declined:
+        case .Declined:
             writeInt(&buf, Int32(3))
 
-        case .failedToGetTcpDetails:
+        case .FailedToGetTcpDetails:
             writeInt(&buf, Int32(4))
 
-        case .failedToGetSocketAddress:
+        case .FailedToGetSocketAddress:
             writeInt(&buf, Int32(5))
 
-        case .failedToOpenTcpStream:
+        case .FailedToOpenTcpStream:
             writeInt(&buf, Int32(6))
 
-        case let .failedToEncryptStream(error):
+        case let .FailedToEncryptStream(error):
             writeInt(&buf, Int32(7))
             FfiConverterString.write(error, into: &buf)
 
-        case let .failedToDetermineFileSize(error):
+        case let .FailedToDetermineFileSize(error):
             writeInt(&buf, Int32(8))
             FfiConverterString.write(error, into: &buf)
 
-        case let .failedToGetTransferRequestResponse(error):
+        case let .FailedToGetTransferRequestResponse(error):
             writeInt(&buf, Int32(9))
             FfiConverterString.write(error, into: &buf)
 
-        case .failedToGetBleDetails:
+        case .FailedToGetBleDetails:
             writeInt(&buf, Int32(10))
 
-        case .internalBleHandlerNotAvailable:
+        case .InternalBleHandlerNotAvailable:
             writeInt(&buf, Int32(11))
 
-        case .failedToEstablishBleConnection:
+        case .FailedToEstablishBleConnection:
             writeInt(&buf, Int32(12))
         }
     }
 }
 
-public func FfiConverterTypeConnectErrors_lift(_ buf: RustBuffer) throws -> ConnectErrors {
-    return try FfiConverterTypeConnectErrors.lift(buf)
-}
-
-public func FfiConverterTypeConnectErrors_lower(_ value: ConnectErrors) -> RustBuffer {
-    return FfiConverterTypeConnectErrors.lower(value)
-}
-
 extension ConnectErrors: Equatable, Hashable {}
+
+extension ConnectErrors: Error {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -2346,6 +2475,74 @@ private struct FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate: FfiC
     }
 }
 
+private struct FfiConverterOptionCallbackInterfaceSendProgressDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = SendProgressDelegate?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceSendProgressDelegate.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceSendProgressDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
+private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
+
+private let uniffiContinuationHandleMap = UniffiHandleMap<UnsafeContinuation<Int8, Never>>()
+
+private func uniffiRustCallAsync<F, T>(
+    rustFutureFunc: () -> UInt64,
+    pollFunc: (UInt64, @escaping UniffiRustFutureContinuationCallback, UInt64) -> Void,
+    completeFunc: (UInt64, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UInt64) -> Void,
+    liftFunc: (F) throws -> T,
+    errorHandler: ((RustBuffer) throws -> Error)?
+) async throws -> T {
+    // Make sure to call uniffiEnsureInitialized() since future creation doesn't have a
+    // RustCallStatus param, so doesn't use makeRustCall()
+    uniffiEnsureInitialized()
+    let rustFuture = rustFutureFunc()
+    defer {
+        freeFunc(rustFuture)
+    }
+    var pollResult: Int8
+    repeat {
+        pollResult = await withUnsafeContinuation {
+            pollFunc(
+                rustFuture,
+                uniffiFutureContinuationCallback,
+                uniffiContinuationHandleMap.insert(obj: $0)
+            )
+        }
+    } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
+
+    return try liftFunc(makeRustCall(
+        { completeFunc(rustFuture, $0) },
+        errorHandler: errorHandler
+    ))
+}
+
+// Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
+// lift the return value or error and resume the suspended function.
+private func uniffiFutureContinuationCallback(handle: UInt64, pollResult: Int8) {
+    if let continuation = try? uniffiContinuationHandleMap.remove(handle: handle) {
+        continuation.resume(returning: pollResult)
+    } else {
+        print("uniffiFutureContinuationCallback invalid handle")
+    }
+}
+
 public func getBleCharacteristicUuid() -> String {
     return try! FfiConverterString.lift(
         try! rustCall {
@@ -2417,7 +2614,43 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_internaldiscovery_stop() != 51582 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_add_ble_implementation() != 33524 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_add_l2_cap_client() != 8114 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_change_device() != 39335 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_get_advertisement_data() != 9521 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_ble_connection() != 2916 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_connection() != 21706 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 54942 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_set_ble_connection_details() != 32984 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_set_tcp_details() != 26676 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_start() != 36830 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_stop() != 28517 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_data_rct_ffi_checksum_constructor_internaldiscovery_new() != 38932 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_constructor_internalnearbyserver_new() != 19105 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_blediscoveryimplementationdelegate_start_scanning() != 20220 {
