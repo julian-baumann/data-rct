@@ -10,6 +10,8 @@ crate-type = ["lib", "staticlib", "cdylib"]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
+[features]
+sync = []
 
 [dependencies]
 async-std = "1.12.0"

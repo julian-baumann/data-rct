@@ -1,0 +1,156 @@
+namespace DataRCT {
+    string get_ble_service_uuid();
+    string get_ble_characteristic_uuid();
+};
+
+dictionary Device {
+    string id;
+    string name;
+    i32 device_type;
+};
+
+[Error]
+interface TransmissionSetupError {
+    UnableToStartTcpServer(string error);
+};
+
+[Error]
+interface ConnectErrors {
+    Unreachable();
+    FailedToGetConnectionDetails();
+    Declined();
+    FailedToGetTcpDetails();
+    FailedToGetSocketAddress();
+    FailedToOpenTcpStream();
+    FailedToEncryptStream(string error);
+    FailedToDetermineFileSize(string error);
+    FailedToGetTransferRequestResponse(string error);
+    FailedToGetBleDetails();
+    InternalBleHandlerNotAvailable();
+    FailedToEstablishBleConnection();
+};
+
+[Error]
+enum DiscoverySetupError {
+    "UnableToSetupUdp",
+    "UnableToSetupMdns"
+};
+
+callback interface DeviceListUpdateDelegate {
+    void device_added(Device value);
+    void device_removed(string device_id);
+};
+
+callback interface BleServerImplementationDelegate {
+    void start_server();
+    void stop_server();
+};
+
+dictionary BluetoothLeConnectionInfo {
+    string uuid;
+    u32 psm;
+};
+
+dictionary TcpConnectionInfo {
+    string hostname;
+    u32 port;
+};
+
+dictionary FileTransferIntent {
+    string? file_name;
+    u64 file_size;
+    boolean multiple;
+};
+
+dictionary ClipboardTransferIntent {
+    string clipboard_content;
+};
+
+enum ConnectionIntentType {
+    "FileTransfer",
+    "Clipboard"
+};
+
+[Enum]
+interface ReceiveProgressState {
+    Unknown();
+    Handshake();
+    Receiving(double progress);
+    Cancelled();
+    Finished();
+};
+
+callback interface ReceiveProgressDelegate {
+    void progress_changed(ReceiveProgressState progress);
+};
+
+interface ConnectionRequest {
+    Device get_sender();
+    ConnectionIntentType get_intent_type();
+    FileTransferIntent? get_file_transfer_intent();
+    ClipboardTransferIntent? get_clipboard_intent();
+    void set_progress_delegate(ReceiveProgressDelegate delegate);
+
+    void accept();
+    void decline();
+};
+
+callback interface NearbyConnectionDelegate {
+    void received_connection_request(ConnectionRequest request);
+};
+
+callback interface L2CapDelegate {
+    void open_l2cap_connection(string connection_id, string peripheral_uuid, u32 psm);
+};
+
+callback interface BleDiscoveryImplementationDelegate {
+    void start_scanning();
+    void stop_scanning();
+};
+
+interface InternalDiscovery {
+    [Throws=DiscoverySetupError]
+    constructor(DeviceListUpdateDelegate? delegate);
+    void add_ble_implementation(BleDiscoveryImplementationDelegate implementation);
+    void start();
+    void stop();
+    void parse_discovery_message(bytes data, string? ble_uuid);
+};
+
+callback interface NativeStreamDelegate {
+    u64 write(bytes data);
+    bytes read(u64 buffer_length);
+    void flush();
+    void disconnect();
+};
+
+[Enum]
+interface SendProgressState {
+    Unknown();
+    Connecting();
+    Requesting();
+    Transferring(double progress);
+    Cancelled();
+    Finished();
+    Declined();
+};
+
+callback interface SendProgressDelegate {
+    void progress_changed(SendProgressState progress);
+};
+
+interface InternalNearbyServer {
+    constructor(Device my_device, string file_storage, NearbyConnectionDelegate delegate);
+    void add_l2_cap_client(L2CapDelegate delegate);
+    void add_ble_implementation(BleServerImplementationDelegate ble_implementation);
+    void change_device(Device new_device);
+    void set_ble_connection_details(BluetoothLeConnectionInfo ble_details);
+    void set_tcp_details(TcpConnectionInfo tcp_details);
+    bytes get_advertisement_data();
+    void start();
+    void handle_incoming_ble_connection(string connection_id, NativeStreamDelegate native_stream);
+    [Throws=ConnectErrors]
+    void send_file(Device receiver, string file_path, SendProgressDelegate progress_delegate);
+    void stop();
+    void handle_incoming_connection(NativeStreamDelegate native_stream_handle);
+};
