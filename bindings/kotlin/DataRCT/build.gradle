@@ -9,7 +9,7 @@ plugins {
 android {
     namespace 'com.julian_baumann.data_rct'
     compileSdk 34
-    ndkVersion '26.1.10909125'
+    ndkVersion '26.2.11394342'
 
     defaultConfig {
         minSdk 29
