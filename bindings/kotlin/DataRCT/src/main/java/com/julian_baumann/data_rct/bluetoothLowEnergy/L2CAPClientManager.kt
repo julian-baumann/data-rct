@@ -17,6 +17,7 @@ class L2CAPClientManager(private val internalHandler: InternalNearbyServer): L2C
         }
 
         val socket = peripheral.createInsecureL2capChannel(psm.toInt())
+        socket.connect()
         val stream = L2CAPStream(socket)
 
         Thread {
