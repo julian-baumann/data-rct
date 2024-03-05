@@ -60,7 +60,10 @@ impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
         let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);
 
         if let Ok(()) = ciphertext {
-            return self.raw_stream.write(&buffer);
+            if let Ok(written_bytes) = self.raw_stream.write(&buffer) {
+                println!("Written {:?}", written_bytes);
+                return Ok(written_bytes);
+            }
         }
 
         return Ok(0);

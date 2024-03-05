@@ -294,7 +294,6 @@ impl NearbyServer {
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: 0.0 });
 
         let mut all_read: usize = 0;
-        println!("test");
 
         while let Ok(read_size) = file.read(&mut buffer) {
             if read_size == 0 {
