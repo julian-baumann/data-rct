@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::{fs, thread};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;
@@ -282,7 +282,13 @@ impl NearbyServer {
             return Err(ConnectErrors::Declined);
         }
 
-        let mut file = File::open(file_path).expect("Failed to open file");
+        let mut file = OpenOptions::new()
+            .write(false)
+            .create(false)
+            .read(true)
+            .open(file_path)
+            .expect("Failed to open file");
+
         let mut buffer = [0; 1024];
 
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: 0.0 });

@@ -61,8 +61,7 @@ class BLEPeripheralManager: NSObject, BleServerImplementationDelegate, CBPeriphe
         streams.append(l2capStream)
 
         Task {
-            print("Handling it over to rust")
-            await internalHandler.handleIncomingConnection(nativeStreamHandle: l2capStream)
+            internalHandler.handleIncomingConnection(nativeStreamHandle: l2capStream)
         }
     }
     
@@ -80,7 +79,6 @@ class BLEPeripheralManager: NSObject, BleServerImplementationDelegate, CBPeriphe
         peripheralManager.add(service)
 
         peripheralManager.startAdvertising([
-            CBAdvertisementDataLocalNameKey: "Apple Device",
             CBAdvertisementDataServiceUUIDsKey: [ServiceUUID]
         ])
     }
@@ -90,11 +88,6 @@ class BLEPeripheralManager: NSObject, BleServerImplementationDelegate, CBPeriphe
             print(error!)
         }
     }
-    
-//    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-//        let data = "Hello".data(using: String.Encoding.utf8)!
-//        peripheral.updateValue(data, for: characteristic as! CBMutableCharacteristic, onSubscribedCentrals: [central])
-//    }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
         Task {

@@ -12,7 +12,7 @@ public enum OpenL2CAPErrors: Error {
     case PeripheralNotFound
 }
 
-public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
+public class BLEClientManager: NSObject, BleDiscoveryImplementationDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
     private let delegate: DiscoveryDelegate
     private let internalHandler: InternalDiscovery
     private let centralManager = CBCentralManager()
@@ -91,7 +91,12 @@ public class BLEClient: NSObject, BleDiscoveryImplementationDelegate, CBCentralM
     }
     
     public func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
-        // Do nothing. Not sure what this does, but if I don't implement it, BLE behaves weirdly
+        peripheral.discoverServices([ServiceUUID])
+        for service in invalidatedServices {
+            if discoveredPeripherals.contains(where: { $0 == service.peripheral } ) {
+                discoveredPeripherals.removeAll(where: { $0 == service.peripheral })
+            }
+        }
     }
     
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {

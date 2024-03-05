@@ -13,11 +13,11 @@ public  protocol DiscoveryDelegate: DeviceListUpdateDelegate {
 
 public class Discovery {
     private let internalHandler: InternalDiscovery
-    private let bleImplementation: BLEClient
+    private let bleImplementation: BLEClientManager
     
     public init(delegate: DiscoveryDelegate) throws {
         internalHandler = try InternalDiscovery(delegate: delegate)
-        bleImplementation = BLEClient(delegate: delegate, internalHandler: internalHandler)
+        bleImplementation = BLEClientManager(delegate: delegate, internalHandler: internalHandler)
         internalHandler.addBleImplementation(implementation: bleImplementation)
     }
     

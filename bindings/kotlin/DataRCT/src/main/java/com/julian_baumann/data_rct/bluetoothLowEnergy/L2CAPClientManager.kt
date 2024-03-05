@@ -20,10 +20,8 @@ class L2CAPClientManager(private val internalHandler: InternalNearbyServer): L2C
         socket.connect()
         val stream = L2CAPStream(socket)
 
-        Thread {
-            CoroutineScope(Dispatchers.Main).launch {
-                internalHandler.handleIncomingBleConnection(connectionId, stream)
-            }
-        }.start()
+        CoroutineScope(Dispatchers.IO).launch {
+            internalHandler.handleIncomingBleConnection(connectionId, stream)
+        }
     }
 }
