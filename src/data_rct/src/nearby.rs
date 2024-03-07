@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::{fs, thread};
-use std::fs::{File, OpenOptions};
+use std::fs::{OpenOptions};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;

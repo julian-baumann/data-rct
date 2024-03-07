@@ -150,7 +150,14 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!discoveredPeripherals.contains(result.device)) {
                 discoveredPeripherals.add(result.device)
-                result.device.connectGatt(context, false, BluetoothGattCallbackTest(internal, discoveredPeripherals))
+
+                result.device.connectGatt(
+                    context,
+                    false,
+                    BluetoothGattCallbackTest(internal, discoveredPeripherals),
+                    BluetoothDevice.TRANSPORT_LE,
+                    BluetoothDevice.PHY_LE_2M_MASK
+                )
             }
         }
     }
