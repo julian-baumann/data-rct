@@ -18,6 +18,8 @@ interface TransmissionSetupError {
 interface ConnectErrors {
     Unreachable();
     FailedToGetConnectionDetails();
+    FailedToGetFileMetadata(string error);
+    FailedToGetFilename();
     Declined();
     FailedToGetTcpDetails();
     FailedToGetSocketAddress();

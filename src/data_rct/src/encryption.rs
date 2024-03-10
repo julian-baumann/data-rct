@@ -38,10 +38,10 @@ impl<TStream> EncryptedStream<TStream> where TStream : Read + Write {
 
 impl<TStream> Read for EncryptedStream<TStream> where TStream : Read + Write {
     fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
-        let mut buffer: Vec<u8> = repeat(0).take(read_buffer.len()).collect();
+        let mut buffer: Vec<u8> = vec![0; read_buffer.len()];
         let read_bytes = self.raw_stream.read(&mut buffer).expect("Failed to read from encrypted buffer");
 
-        if read_bytes <= 0 {
+        if read_bytes == 0 {
             return Ok(0);
         }
 

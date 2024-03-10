@@ -10,6 +10,12 @@ pub enum ConnectErrors {
     #[error("Failed to get connection details")]
     FailedToGetConnectionDetails,
 
+    #[error("Failed to get file metadata")]
+    FailedToGetFileMetadata { error: String },
+
+    #[error("Failed to get filename")]
+    FailedToGetFilename,
+
     #[error("Peripheral declined the connection")]
     Declined,
 
@@ -86,5 +92,5 @@ pub enum DiscoverySetupError {
     UnableToSetupUdp,
 
     #[error("Unable to setup MDNS-SD Discovery")]
-    UnableToSetupMdns
+    UnableToSetupMdns,
 }

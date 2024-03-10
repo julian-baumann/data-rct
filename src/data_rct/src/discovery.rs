@@ -38,11 +38,7 @@ impl Discovery {
     }
 
     pub fn get_connection_details(device: Device) -> Option<DeviceConnectionInfo> {
-        if DISCOVERED_DEVICES.get().unwrap().read().unwrap().contains_key(&device.id) {
-            return Some(DISCOVERED_DEVICES.get().unwrap().read().unwrap()[&device.id].clone());
-        }
-
-        return None;
+        Some(DISCOVERED_DEVICES.get()?.read().ok()?.get(&device.id)?.clone())
     }
 
     pub fn add_ble_implementation(&mut self, implementation: Box<dyn BleDiscoveryImplementationDelegate>) {
