@@ -59,12 +59,8 @@ impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
         let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
         let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);
 
-        println!("Test 1");
         if let Ok(()) = ciphertext {
-            println!("Test 1 - ciphertext ok");
             if let Ok(written_bytes) = self.raw_stream.write(&buffer) {
-                println!("Test 1 - written_bytes ok");
-                println!("Test 1 - Written {:?}", written_bytes);
                 return Ok(written_bytes);
             }
         }

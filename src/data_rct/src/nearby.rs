@@ -309,7 +309,7 @@ impl NearbyServer {
 
             all_written += written_bytes;
 
-            trace!("Written {all_written:?} of {read_size:?} bytes");
+            trace!("Written {written_bytes:?} of {read_size:?} bytes");
 
             NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_written as f64 / file_size as f64) });
         }
