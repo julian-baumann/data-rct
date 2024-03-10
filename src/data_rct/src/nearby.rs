@@ -293,19 +293,20 @@ impl NearbyServer {
 
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: 0.0 });
 
-        let mut all_read: usize = 0;
+        let mut all_written: usize = 0;
 
         while let Ok(read_size) = file.read(&mut buffer) {
             if read_size == 0 {
                 break;
             }
 
-            all_read += read_size;
-
-            NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_read as f64 / file_size as f64) });
-
-            encrypted_stream.write_all(&buffer[..read_size])
+            let written_bytes = encrypted_stream.write(&buffer[..read_size])
                 .expect("Failed to write file buffer");
+
+            all_written += written_bytes;
+            println!("Written {all_written:?} of {read_size:?} bytes");
+
+            NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_written as f64 / file_size as f64) });
         }
 
         encrypted_stream.close();
