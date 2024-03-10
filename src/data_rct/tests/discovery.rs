@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
 use data_rct::discovery::{DeviceInfo, Discovery, DiscoveryMethod};
+use std::time::{Duration, Instant};
 
 const FOREIGN_DEVICE_ID: &str = "39FAC7A0-E581-4676-A9C5-0F6DC667567F";
 
@@ -9,18 +9,23 @@ fn get_my_device() -> DeviceInfo {
         name: "Rust Device".to_string(),
         port: 42,
         device_type: "computer".to_string(),
-        ip_address: "1.2.3.4".to_string()
+        ip_address: "1.2.3.4".to_string(),
     };
 }
 
 fn setup_foreign_discovery(method: DiscoveryMethod) -> Discovery {
-    let discovery = Discovery::new(DeviceInfo {
-        id: FOREIGN_DEVICE_ID.to_string(),
-        name: "Discovery-Test Advertiser".to_string(),
-        port: 52,
-        device_type: "computer".to_string(),
-        ip_address: "2.3.4.5".to_string()
-    }, method, None).unwrap();
+    let discovery = Discovery::new(
+        DeviceInfo {
+            id: FOREIGN_DEVICE_ID.to_string(),
+            name: "Discovery-Test Advertiser".to_string(),
+            port: 52,
+            device_type: "computer".to_string(),
+            ip_address: "2.3.4.5".to_string(),
+        },
+        method,
+        None,
+    )
+    .unwrap();
 
     discovery.advertise();
 
@@ -47,7 +52,11 @@ fn discover_device(method: DiscoveryMethod) {
         }
 
         if start.elapsed() >= Duration::from_secs(20) {
-            assert!(false, "No devices were found in 20s, mode: {}", method.to_string());
+            assert!(
+                false,
+                "No devices were found in 20s, mode: {}",
+                method.to_string()
+            );
         }
     }
 }
@@ -58,5 +67,7 @@ fn discovery() {
     discover_device(DiscoveryMethod::Both);
     // sleep(Duration::from_secs(20));
     // loop {}
-    foreign_discovery.stop().expect("Failed to stop foreign discovery");
+    foreign_discovery
+        .stop()
+        .expect("Failed to stop foreign discovery");
 }

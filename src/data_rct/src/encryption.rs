@@ -1,10 +1,10 @@
-use std::io;
-use std::io::{Error, Read, Write};
-use std::io::ErrorKind::Other;
-use std::iter::repeat;
-use rand_core::OsRng;
-use chacha20::XChaCha20;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
+use chacha20::XChaCha20;
+use rand_core::OsRng;
+use std::io;
+use std::io::ErrorKind::Other;
+use std::io::{Error, Read, Write};
+use std::iter::repeat;
 
 use crate::stream::Close;
 
@@ -16,23 +16,32 @@ pub fn generate_iv() -> [u8; 24] {
     XChaCha20::generate_iv(&mut OsRng).into()
 }
 
-pub struct EncryptedStream<TStream> where TStream : Read + Write {
+pub struct EncryptedStream<TStream>
+where
+    TStream: Read + Write,
+{
     pub cipher: XChaCha20,
-    pub raw_stream: TStream
+    pub raw_stream: TStream,
 }
 
-impl<TStream> EncryptedStream<TStream> where TStream : Read + Write {
+impl<TStream> EncryptedStream<TStream>
+where
+    TStream: Read + Write,
+{
     pub fn new(key: [u8; 32], iv: [u8; 24], stream: TStream) -> Self {
         let cipher = XChaCha20::new(&key.into(), &iv.into());
 
         Self {
             cipher,
-            raw_stream: stream
+            raw_stream: stream,
         }
     }
 }
 
-impl<TStream> Read for EncryptedStream<TStream> where TStream : Read + Write {
+impl<TStream> Read for EncryptedStream<TStream>
+where
+    TStream: Read + Write,
+{
     fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = vec![0; read_buffer.len()];
         let read_bytes = self.raw_stream.read(&mut buffer)?;
@@ -47,7 +56,10 @@ impl<TStream> Read for EncryptedStream<TStream> where TStream : Read + Write {
     }
 }
 
-impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
+impl<TStream> Write for EncryptedStream<TStream>
+where
+    TStream: Read + Write,
+{
     fn write(&mut self, write_buffer: &[u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = repeat(0).take(write_buffer.len()).collect();
         let ciphertext = self.cipher.apply_keystream_b2b(write_buffer, &mut buffer);
@@ -70,11 +82,17 @@ impl<TStream> Write for EncryptedStream<TStream> where TStream : Read + Write {
     }
 }
 
-impl<TStream> Close for EncryptedStream<TStream> where TStream: Close + Read + Write {
+impl<TStream> Close for EncryptedStream<TStream>
+where
+    TStream: Close + Read + Write,
+{
     fn close(&self) {
         self.raw_stream.close();
     }
 }
 
 pub trait EncryptedReadWrite: Read + Write + Send + Close {}
-impl<TStream> EncryptedReadWrite for EncryptedStream<TStream> where TStream : Read + Write + Send + Close {}
+impl<TStream> EncryptedReadWrite for EncryptedStream<TStream> where
+    TStream: Read + Write + Send + Close
+{
+}

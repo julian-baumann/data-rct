@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 pub use prost;
+use std::fmt::Debug;
 
 pub mod discovery {
     include!(concat!(env!("OUT_DIR"), "/data_rct.discovery.rs"));
