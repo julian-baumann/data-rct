@@ -176,14 +176,11 @@ impl NearbyServer {
     where
         T: Read + Write,
     {
-        return Ok(match initiate_sender_communication(raw_stream).await {
-            Ok(stream) => stream,
-            Err(error) => {
-                return Err(ConnectErrors::FailedToEncryptStream {
-                    error: error.to_string(),
-                })
-            }
-        });
+        initiate_sender_communication(raw_stream)
+            .await
+            .map_err(|err| ConnectErrors::FailedToEncryptStream {
+                error: err.to_string(),
+            })
     }
 
     pub fn handle_incoming_ble_connection(
@@ -216,30 +213,25 @@ impl NearbyServer {
         );
         println!("{:?}", socket_string);
 
-        let socket_address = socket_string.to_socket_addrs();
-
-        let Ok(socket_address) = socket_address else {
-            println!("{:?}", socket_address.unwrap_err());
-            return Err(ConnectErrors::FailedToGetSocketAddress);
-        };
-
-        let mut socket_address = socket_address.as_slice()[0].clone();
+        let mut socket_address = socket_string
+            .to_socket_addrs()
+            .map_err(|err| {
+                println!("{err:?}");
+                ConnectErrors::FailedToGetSocketAddress
+            })?
+            .as_slice()[0];
         socket_address.set_port(tcp_connection_details.port as u16);
 
-        let tcp_stream = TcpClient::connect(socket_address);
+        let tcp_stream =
+            TcpClient::connect(socket_address).map_err(|_| ConnectErrors::FailedToOpenTcpStream)?;
 
-        if let Ok(raw_stream) = tcp_stream {
-            let encrypted_stream = self.initiate_sender(raw_stream).await?;
-            return Ok(Box::new(encrypted_stream));
-        }
-
-        return Err(ConnectErrors::FailedToOpenTcpStream);
+        let encrypted_stream = self.initiate_sender(tcp_stream).await?;
+        return Ok(Box::new(encrypted_stream));
     }
 
     async fn connect(&self, device: Device) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
-        let Some(connection_details) = Discovery::get_connection_details(device) else {
-            return Err(ConnectErrors::FailedToGetConnectionDetails);
-        };
+        let connection_details = Discovery::get_connection_details(device)
+            .ok_or(ConnectErrors::FailedToGetConnectionDetails)?;
 
         let encrypted_stream = self
             .connect_tcp(&connection_details)
@@ -250,9 +242,9 @@ impl NearbyServer {
         }
 
         // Use BLE if TCP fails
-        let Some(ble_connection_details) = &connection_details.ble else {
-            return Err(ConnectErrors::FailedToGetBleDetails);
-        };
+        let ble_connection_details = &connection_details
+            .ble
+            .ok_or(ConnectErrors::FailedToGetBleDetails)?;
 
         let id = Uuid::new_v4().to_string();
         let (sender, receiver) = oneshot::channel::<Box<dyn NativeStreamDelegate>>();
@@ -263,21 +255,21 @@ impl NearbyServer {
             .l2cap_connections
             .insert(id.clone(), sender);
 
-        if let Some(ble_l2cap_client) = &self.variables.read().await.ble_l2_cap_client {
-            ble_l2cap_client.open_l2cap_connection(
-                id.clone(),
-                ble_connection_details.uuid.clone(),
-                ble_connection_details.psm,
-            );
-        } else {
-            return Err(ConnectErrors::InternalBleHandlerNotAvailable);
-        }
+        let ble_l2cap_client = &self.variables.read().await.ble_l2_cap_client;
 
-        let connection = receiver.await;
+        let ble_l2cap_client = ble_l2cap_client
+            .as_ref()
+            .ok_or(ConnectErrors::InternalBleHandlerNotAvailable)?;
 
-        let Ok(connection) = connection else {
-            return Err(ConnectErrors::FailedToEstablishBleConnection);
-        };
+        ble_l2cap_client.open_l2cap_connection(
+            id.clone(),
+            ble_connection_details.uuid.clone(),
+            ble_connection_details.psm,
+        );
+
+        let connection = receiver
+            .await
+            .map_err(|_| ConnectErrors::FailedToEstablishBleConnection)?;
 
         let encrypted_stream = self.initiate_sender(connection).await?;
         return Ok(Box::new(encrypted_stream));
@@ -404,12 +396,11 @@ impl NearbyServer {
             };
 
             let mut prost_stream = Stream::new(&mut encrypted_stream);
-            let transfer_request = match prost_stream.recv::<TransferRequest>() {
-                Ok(message) => message,
-                Err(error) => {
-                    println!("Error {:}", error);
-                    return;
-                }
+            let Ok(transfer_request) = prost_stream
+                .recv::<TransferRequest>()
+                .inspect_err(|err| println!("Error {err:?}"))
+            else {
+                return;
             };
 
             let connection_request = ConnectionRequest::new(
