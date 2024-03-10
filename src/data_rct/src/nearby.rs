@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::{fs, thread};
-use std::fs::{OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;
@@ -9,6 +9,8 @@ use std::sync::Arc;
 
 use local_ip_address::local_ip;
 use prost_stream::Stream;
+
+use log::trace;
 
 use protocol::communication::{FileTransferIntent, TransferRequest, TransferRequestResponse};
 use protocol::communication::transfer_request::Intent;
@@ -245,6 +247,8 @@ impl NearbyServer {
     }
 
     pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn SendProgressDelegate>>) -> Result<(), ConnectErrors> {
+        init_logger();
+
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Connecting);
 
         let mut encrypted_stream = match self.connect(receiver).await {
@@ -304,7 +308,8 @@ impl NearbyServer {
                 .expect("Failed to write file buffer");
 
             all_written += written_bytes;
-            println!("Written {all_written:?} of {read_size:?} bytes");
+
+            trace!("Written {all_written:?} of {read_size:?} bytes");
 
             NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_written as f64 / file_size as f64) });
         }
