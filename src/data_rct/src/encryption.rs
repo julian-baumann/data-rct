@@ -9,15 +9,11 @@ use chacha20::cipher::{KeyIvInit, StreamCipher};
 use crate::stream::Close;
 
 pub fn generate_key() -> [u8; 32] {
-    let key = XChaCha20::generate_key(&mut OsRng);
-
-    return key.into();
+    XChaCha20::generate_key(&mut OsRng).into()
 }
 
 pub fn generate_iv() -> [u8; 24] {
-    let nonce = XChaCha20::generate_iv(&mut OsRng);
-
-    return nonce.into();
+    XChaCha20::generate_iv(&mut OsRng).into()
 }
 
 pub struct EncryptedStream<TStream> where TStream : Read + Write {
@@ -39,16 +35,13 @@ impl<TStream> EncryptedStream<TStream> where TStream : Read + Write {
 impl<TStream> Read for EncryptedStream<TStream> where TStream : Read + Write {
     fn read(&mut self, read_buffer: &mut [u8]) -> io::Result<usize> {
         let mut buffer: Vec<u8> = vec![0; read_buffer.len()];
-        let read_bytes = self.raw_stream.read(&mut buffer).expect("Failed to read from encrypted buffer");
+        let read_bytes = self.raw_stream.read(&mut buffer)?;
 
-        if read_bytes == 0 {
-            return Ok(0);
+        if read_bytes != 0 {
+            self.cipher
+                .apply_keystream_b2b(&buffer[..read_bytes], &mut read_buffer[..read_bytes])
+                .map_err(|err| Error::new(Other, err.to_string()))?;
         }
-
-        match self.cipher.apply_keystream_b2b(&buffer[..read_bytes], &mut read_buffer[..read_bytes]) {
-            Ok(_) => {}
-            Err(error) => return Err(Error::new(Other, error.to_string()))
-        };
 
         return Ok(read_bytes);
     }
