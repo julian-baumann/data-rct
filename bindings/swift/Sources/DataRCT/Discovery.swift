@@ -7,7 +7,7 @@
 
 import Foundation
 
-public  protocol DiscoveryDelegate: DeviceListUpdateDelegate {
+public protocol DiscoveryDelegate: DeviceListUpdateDelegate {
     func discoveryDidUpdateState(state: BluetoothState)
 }
 

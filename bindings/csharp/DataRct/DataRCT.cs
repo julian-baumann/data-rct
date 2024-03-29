@@ -212,7 +212,7 @@ struct RustCallStatus
 }
 
 // Base class for all uniffi exceptions
-internal class UniffiException : Exception
+public class UniffiException : Exception
 {
     public UniffiException()
         : base() { }
@@ -221,43 +221,43 @@ internal class UniffiException : Exception
         : base(message) { }
 }
 
-internal class UndeclaredErrorException : UniffiException
+public class UndeclaredErrorException : UniffiException
 {
     public UndeclaredErrorException(string message)
         : base(message) { }
 }
 
-internal class PanicException : UniffiException
+public class PanicException : UniffiException
 {
     public PanicException(string message)
         : base(message) { }
 }
 
-internal class AllocationException : UniffiException
+public class AllocationException : UniffiException
 {
     public AllocationException(string message)
         : base(message) { }
 }
 
-internal class InternalException : UniffiException
+public class InternalException : UniffiException
 {
     public InternalException(string message)
         : base(message) { }
 }
 
-internal class InvalidEnumException : InternalException
+public class InvalidEnumException : InternalException
 {
     public InvalidEnumException(string message)
         : base(message) { }
 }
 
-internal class UniffiContractVersionException : UniffiException
+public class UniffiContractVersionException : UniffiException
 {
     public UniffiContractVersionException(string message)
         : base(message) { }
 }
 
-internal class UniffiContractChecksumException : UniffiException
+public class UniffiContractChecksumException : UniffiException
 {
     public UniffiContractChecksumException(string message)
         : base(message) { }
@@ -706,7 +706,7 @@ static class _UniFFILib
         InternalNearbyServerSafeHandle @ptr,
         RustBuffer @receiver,
         RustBuffer @filePath,
-        ulong @progressDelegate,
+        RustBuffer @progressDelegate,
         ref RustCallStatus _uniffi_out_err
     );
 
@@ -1384,10 +1384,10 @@ static class _UniFFILib
         {
             var checksum =
                 _UniFFILib.uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file();
-            if (checksum != 63319)
+            if (checksum != 40766)
             {
                 throw new UniffiContractChecksumException(
-                    $"DataRct: uniffi bindings expected function `uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file` checksum `63319`, library returned `{checksum}`"
+                    $"DataRct: uniffi bindings expected function `uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file` checksum `40766`, library returned `{checksum}`"
                 );
             }
         }
@@ -1832,7 +1832,7 @@ class FfiConverterByteArray : FfiConverterRustBuffer<byte[]>
 // https://github.com/mozilla/uniffi-rs/blob/0dc031132d9493ca812c3af6e7dd60ad2ea95bf0/uniffi_bindgen/src/bindings/kotlin/templates/ObjectRuntime.kt#L31
 // https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.criticalhandle
 
-internal abstract class FFIObject<THandle> : IDisposable
+public abstract class FFIObject<THandle> : IDisposable
     where THandle : FFISafeHandle
 {
     private THandle handle;
@@ -1853,7 +1853,7 @@ internal abstract class FFIObject<THandle> : IDisposable
     }
 }
 
-internal abstract class FFISafeHandle : SafeHandle
+public abstract class FFISafeHandle : SafeHandle
 {
     public FFISafeHandle()
         : base(new IntPtr(0), true) { }
@@ -1933,7 +1933,7 @@ static class FFIObjectUtil
     }
 }
 
-internal interface IConnectionRequest
+public interface IConnectionRequest
 {
     void Accept();
 
@@ -1950,7 +1950,7 @@ internal interface IConnectionRequest
     void SetProgressDelegate(ReceiveProgressDelegate @delegate);
 }
 
-internal class ConnectionRequestSafeHandle : FFISafeHandle
+public class ConnectionRequestSafeHandle : FFISafeHandle
 {
     public ConnectionRequestSafeHandle()
         : base() { }
@@ -1970,7 +1970,7 @@ internal class ConnectionRequestSafeHandle : FFISafeHandle
     }
 }
 
-internal class ConnectionRequest : FFIObject<ConnectionRequestSafeHandle>, IConnectionRequest
+public class ConnectionRequest : FFIObject<ConnectionRequestSafeHandle>, IConnectionRequest
 {
     public ConnectionRequest(ConnectionRequestSafeHandle pointer)
         : base(pointer) { }
@@ -2094,7 +2094,7 @@ class FfiConverterTypeConnectionRequest
     }
 }
 
-internal interface IInternalDiscovery
+public interface IInternalDiscovery
 {
     void AddBleImplementation(BleDiscoveryImplementationDelegate @implementation);
 
@@ -2105,7 +2105,7 @@ internal interface IInternalDiscovery
     void Stop();
 }
 
-internal class InternalDiscoverySafeHandle : FFISafeHandle
+public class InternalDiscoverySafeHandle : FFISafeHandle
 {
     public InternalDiscoverySafeHandle()
         : base() { }
@@ -2125,7 +2125,7 @@ internal class InternalDiscoverySafeHandle : FFISafeHandle
     }
 }
 
-internal class InternalDiscovery : FFIObject<InternalDiscoverySafeHandle>, IInternalDiscovery
+public class InternalDiscovery : FFIObject<InternalDiscoverySafeHandle>, IInternalDiscovery
 {
     public InternalDiscovery(InternalDiscoverySafeHandle pointer)
         : base(pointer) { }
@@ -2224,7 +2224,7 @@ class FfiConverterTypeInternalDiscovery
     }
 }
 
-internal interface IInternalNearbyServer
+public interface IInternalNearbyServer
 {
     void AddBleImplementation(BleServerImplementationDelegate @bleImplementation);
 
@@ -2239,7 +2239,7 @@ internal interface IInternalNearbyServer
     void HandleIncomingConnection(NativeStreamDelegate @nativeStreamHandle);
 
     /// <exception cref="ConnectErrors"></exception>
-    void SendFile(Device @receiver, String @filePath, SendProgressDelegate @progressDelegate);
+    void SendFile(Device @receiver, String @filePath, SendProgressDelegate? @progressDelegate);
 
     void SetBleConnectionDetails(BluetoothLeConnectionInfo @bleDetails);
 
@@ -2250,7 +2250,7 @@ internal interface IInternalNearbyServer
     void Stop();
 }
 
-internal class InternalNearbyServerSafeHandle : FFISafeHandle
+public class InternalNearbyServerSafeHandle : FFISafeHandle
 {
     public InternalNearbyServerSafeHandle()
         : base() { }
@@ -2273,9 +2273,7 @@ internal class InternalNearbyServerSafeHandle : FFISafeHandle
     }
 }
 
-internal class InternalNearbyServer
-    : FFIObject<InternalNearbyServerSafeHandle>,
-        IInternalNearbyServer
+public class InternalNearbyServer : FFIObject<InternalNearbyServerSafeHandle>, IInternalNearbyServer
 {
     public InternalNearbyServer(InternalNearbyServerSafeHandle pointer)
         : base(pointer) { }
@@ -2377,7 +2375,11 @@ internal class InternalNearbyServer
     }
 
     /// <exception cref="ConnectErrors"></exception>
-    public void SendFile(Device @receiver, String @filePath, SendProgressDelegate @progressDelegate)
+    public void SendFile(
+        Device @receiver,
+        String @filePath,
+        SendProgressDelegate? @progressDelegate
+    )
     {
         _UniffiHelpers.RustCallWithError(
             FfiConverterTypeConnectErrors.INSTANCE,
@@ -2386,7 +2388,7 @@ internal class InternalNearbyServer
                     this.GetHandle(),
                     FfiConverterTypeDevice.INSTANCE.Lower(@receiver),
                     FfiConverterString.INSTANCE.Lower(@filePath),
-                    FfiConverterTypeSendProgressDelegate.INSTANCE.Lower(@progressDelegate),
+                    FfiConverterOptionalTypeSendProgressDelegate.INSTANCE.Lower(@progressDelegate),
                     ref _status
                 )
         );
@@ -2471,7 +2473,7 @@ class FfiConverterTypeInternalNearbyServer
     }
 }
 
-internal record BluetoothLeConnectionInfo(String @uuid, uint @psm) { }
+public record BluetoothLeConnectionInfo(String @uuid, uint @psm) { }
 
 class FfiConverterTypeBluetoothLeConnectionInfo : FfiConverterRustBuffer<BluetoothLeConnectionInfo>
 {
@@ -2499,7 +2501,7 @@ class FfiConverterTypeBluetoothLeConnectionInfo : FfiConverterRustBuffer<Bluetoo
     }
 }
 
-internal record ClipboardTransferIntent(String @clipboardContent) { }
+public record ClipboardTransferIntent(String @clipboardContent) { }
 
 class FfiConverterTypeClipboardTransferIntent : FfiConverterRustBuffer<ClipboardTransferIntent>
 {
@@ -2524,7 +2526,7 @@ class FfiConverterTypeClipboardTransferIntent : FfiConverterRustBuffer<Clipboard
     }
 }
 
-internal record Device(String @id, String @name, int @deviceType) { }
+public record Device(String @id, String @name, int @deviceType) { }
 
 class FfiConverterTypeDevice : FfiConverterRustBuffer<Device>
 {
@@ -2554,7 +2556,7 @@ class FfiConverterTypeDevice : FfiConverterRustBuffer<Device>
     }
 }
 
-internal record FileTransferIntent(String? @fileName, ulong @fileSize, bool @multiple) { }
+public record FileTransferIntent(String? @fileName, ulong @fileSize, bool @multiple) { }
 
 class FfiConverterTypeFileTransferIntent : FfiConverterRustBuffer<FileTransferIntent>
 {
@@ -2585,7 +2587,7 @@ class FfiConverterTypeFileTransferIntent : FfiConverterRustBuffer<FileTransferIn
     }
 }
 
-internal record TcpConnectionInfo(String @hostname, uint @port) { }
+public record TcpConnectionInfo(String @hostname, uint @port) { }
 
 class FfiConverterTypeTcpConnectionInfo : FfiConverterRustBuffer<TcpConnectionInfo>
 {
@@ -2613,7 +2615,7 @@ class FfiConverterTypeTcpConnectionInfo : FfiConverterRustBuffer<TcpConnectionIn
     }
 }
 
-internal class ConnectErrors : UniffiException
+public class ConnectErrors : UniffiException
 {
     // Each variant is a nested class
 
@@ -2815,7 +2817,7 @@ class FfiConverterTypeConnectErrors
     }
 }
 
-internal enum ConnectionIntentType : int
+public enum ConnectionIntentType : int
 {
     FileTransfer,
     Clipboard
@@ -2855,7 +2857,7 @@ class FfiConverterTypeConnectionIntentType : FfiConverterRustBuffer<ConnectionIn
     }
 }
 
-internal class DiscoverySetupException : UniffiException
+public class DiscoverySetupException : UniffiException
 {
     DiscoverySetupException(string message)
         : base(message) { }
@@ -2932,7 +2934,7 @@ class FfiConverterTypeDiscoverySetupException
     }
 }
 
-internal record ReceiveProgressState
+public record ReceiveProgressState
 {
     public record Unknown : ReceiveProgressState { }
 
@@ -3030,7 +3032,7 @@ class FfiConverterTypeReceiveProgressState : FfiConverterRustBuffer<ReceiveProgr
     }
 }
 
-internal record SendProgressState
+public record SendProgressState
 {
     public record Unknown : SendProgressState { }
 
@@ -3146,7 +3148,7 @@ class FfiConverterTypeSendProgressState : FfiConverterRustBuffer<SendProgressSta
     }
 }
 
-internal class TransmissionSetupException : UniffiException
+public class TransmissionSetupException : UniffiException
 {
     // Each variant is a nested class
 
@@ -3346,7 +3348,7 @@ internal abstract class FfiConverterCallbackInterface<CallbackInterface>
     }
 }
 
-internal interface BleDiscoveryImplementationDelegate
+public interface BleDiscoveryImplementationDelegate
 {
     void StartScanning();
     void StopScanning();
@@ -3477,7 +3479,7 @@ class FfiConverterTypeBleDiscoveryImplementationDelegate
     }
 }
 
-internal interface BleServerImplementationDelegate
+public interface BleServerImplementationDelegate
 {
     void StartServer();
     void StopServer();
@@ -3608,7 +3610,7 @@ class FfiConverterTypeBleServerImplementationDelegate
     }
 }
 
-internal interface DeviceListUpdateDelegate
+public interface DeviceListUpdateDelegate
 {
     void DeviceAdded(Device @value);
     void DeviceRemoved(String @deviceId);
@@ -3733,7 +3735,7 @@ class FfiConverterTypeDeviceListUpdateDelegate
     }
 }
 
-internal interface L2CapDelegate
+public interface L2CapDelegate
 {
     void OpenL2capConnection(String @connectionId, String @peripheralUuid, uint @psm);
 }
@@ -3833,7 +3835,7 @@ class FfiConverterTypeL2CapDelegate : FfiConverterCallbackInterface<L2CapDelegat
     }
 }
 
-internal interface NativeStreamDelegate
+public interface NativeStreamDelegate
 {
     ulong Write(byte[] @data);
     byte[] Read(ulong @bufferLength);
@@ -4017,7 +4019,7 @@ class FfiConverterTypeNativeStreamDelegate : FfiConverterCallbackInterface<Nativ
     }
 }
 
-internal interface NearbyConnectionDelegate
+public interface NearbyConnectionDelegate
 {
     void ReceivedConnectionRequest(ConnectionRequest @request);
 }
@@ -4118,7 +4120,7 @@ class FfiConverterTypeNearbyConnectionDelegate
     }
 }
 
-internal interface ReceiveProgressDelegate
+public interface ReceiveProgressDelegate
 {
     void ProgressChanged(ReceiveProgressState @progress);
 }
@@ -4219,7 +4221,7 @@ class FfiConverterTypeReceiveProgressDelegate
     }
 }
 
-internal interface SendProgressDelegate
+public interface SendProgressDelegate
 {
     void ProgressChanged(SendProgressState @progress);
 }
@@ -4491,8 +4493,54 @@ class FfiConverterOptionalTypeDeviceListUpdateDelegate
         }
     }
 }
+
+class FfiConverterOptionalTypeSendProgressDelegate : FfiConverterRustBuffer<SendProgressDelegate?>
+{
+    public static FfiConverterOptionalTypeSendProgressDelegate INSTANCE =
+        new FfiConverterOptionalTypeSendProgressDelegate();
+
+    public override SendProgressDelegate? Read(BigEndianStream stream)
+    {
+        if (stream.ReadByte() == 0)
+        {
+            return null;
+        }
+        return FfiConverterTypeSendProgressDelegate.INSTANCE.Read(stream);
+    }
+
+    public override int AllocationSize(SendProgressDelegate? value)
+    {
+        if (value == null)
+        {
+            return 1;
+        }
+        else
+        {
+            return 1
+                + FfiConverterTypeSendProgressDelegate.INSTANCE.AllocationSize(
+                    (SendProgressDelegate)value
+                );
+        }
+    }
+
+    public override void Write(SendProgressDelegate? value, BigEndianStream stream)
+    {
+        if (value == null)
+        {
+            stream.WriteByte(0);
+        }
+        else
+        {
+            stream.WriteByte(1);
+            FfiConverterTypeSendProgressDelegate.INSTANCE.Write(
+                (SendProgressDelegate)value,
+                stream
+            );
+        }
+    }
+}
 #pragma warning restore 8625
-internal static class DataRctMethods
+public static class DataRctMethods
 {
     public static String GetBleCharacteristicUuid()
     {

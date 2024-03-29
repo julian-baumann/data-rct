@@ -21,6 +21,9 @@ pub mod sync_code;
 #[cfg(not(feature = "sync"))]
 pub mod async_code;
 
+#[cfg(feature = "sync")]
+pub use crate::sync_code::InternalNearbyServer;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExternalIOError {
     #[error("IO Error: {reason}")]
@@ -74,4 +77,7 @@ impl InternalDiscovery {
     }
 }
 
+#[cfg(feature = "sync")]
+uniffi::include_scaffolding!("data_rct_sync");
+#[cfg(not(feature = "sync"))]
 uniffi::include_scaffolding!("data_rct");

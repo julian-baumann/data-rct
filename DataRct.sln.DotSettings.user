@@ -1,0 +1,84 @@
+﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CProgram_0020Files_0020_0028x86_0029_005CWindows_0020Kits_005C10_005CUnionMetadata_005C10_002E0_002E22621_002E0_005CWindows_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CUsers_005CJakob_005CProjects_005Cdata_002Drct_005Ctarget_005Cx86_005F64_002Dpc_002Dwindows_002Dmsvc_005Crelease_005Cdata_005Frct_005Fffi_002Edll/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CMicrosoft_002ENET_005CFramework64_005Cv4_002E0_002E30319_005CSystem_002ERuntime_002EWindowsRuntime_002Edll/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EAI_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EApplicationModel_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EData_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EDevices_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EFoundation_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EGaming_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EGlobalization_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EGraphics_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EManagement_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EMedia_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002ENetworking_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EPerception_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002ESecurity_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EServices_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EStorage_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002ESystem_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EUI_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EUI_002EXaml_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/AddReferences/RecentPaths/=C_003A_005CWindows_005CSystem32_005CWinMetadata_005CWindows_002EWeb_002Ewinmd/@EntryIndexedValue">True</s:Boolean>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=1a6adb29_002Dbcba_002D42ea_002Da7a8_002D157899c9dd15/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="StartBleScanning" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.BlePeripheralManagerTests.Test&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=2a454624_002D151b_002D4113_002Db2dc_002Dd01b5e2df13b/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #22" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=3570652d_002D6af0_002D4ac2_002D8028_002D6624438780cb/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #24" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=4d29aa45_002Da48f_002D4537_002D800a_002D89a3c055943a/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #2" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	
+	
+	
+	
+	
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=606f8cf0_002D52de_002D4cd1_002D869b_002D85dde4361616/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #8" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=623bbf68_002D041e_002D49c6_002Da523_002D91a4124599da/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="DataRtcTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	
+	
+	
+	
+	
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=90d05ef1_002D179a_002D4bc3_002Db565_002D9164196c5440/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #7" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=c87fd97b_002D65c8_002D413b_002D9818_002D1afcf1aeeff0/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="StartBleScanning #23" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::7B804253-703C-40AA-AB2B-8B8D158FB942::net8.0-windows10.0.22621.0::DataRtc.Test.DataRtcTests.StartBleScanning&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	
+	
+	
+	
+	</wpf:ResourceDictionary>

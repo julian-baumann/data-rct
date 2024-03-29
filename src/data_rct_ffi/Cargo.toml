@@ -16,9 +16,9 @@ sync = []
 [dependencies]
 async-std = "1.12.0"
 data_rct = { package = "data_rct", path = "../data_rct" }
-uniffi = { git = "https://github.com/julian-baumann/uniffi-rs", rev = "9bbf2d2", features = ["cli", "tokio", "default"] }
+uniffi = { version = "0.25", features = ["cli", "tokio", "default"] }
 thiserror = "1.0"
 tokio = { version = "1.35.1", features = ["sync"] }
 
 [build-dependencies]
-uniffi = { git = "https://github.com/julian-baumann/uniffi-rs", rev = "9bbf2d2",  features = ["build"] }
+uniffi = { version = "0.25",  features = ["build"] }

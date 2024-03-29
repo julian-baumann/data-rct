@@ -150,7 +150,7 @@ interface InternalNearbyServer {
     void start();
     void handle_incoming_ble_connection(string connection_id, NativeStreamDelegate native_stream);
     [Throws=ConnectErrors]
-    void send_file(Device receiver, string file_path, SendProgressDelegate progress_delegate);
+    void send_file(Device receiver, string file_path, SendProgressDelegate? progress_delegate);
     void stop();
     void handle_incoming_connection(NativeStreamDelegate native_stream_handle);
 };

@@ -7,3 +7,4 @@ android_cleaner = true
 [bindings.csharp]
 cdylib_name = "data_rct_ffi"
 namespace = "DataRct"
+access_modifier = "public"
