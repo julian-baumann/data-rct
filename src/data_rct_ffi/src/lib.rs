@@ -7,7 +7,7 @@ pub use data_rct::Device;
 pub use data_rct::discovery::{BleDiscoveryImplementationDelegate, Discovery};
 pub use data_rct::DiscoveryDelegate as DeviceListUpdateDelegate;
 pub use data_rct::encryption::EncryptedStream;
-pub use data_rct::nearby::{SendProgressState, SendProgressDelegate, BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer};
+pub use data_rct::nearby::{ConnectionMedium, SendProgressState, SendProgressDelegate, BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer};
 pub use data_rct::nearby::ConnectionIntentType;
 pub use data_rct::protocol::communication::FileTransferIntent;
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, TcpConnectionInfo};

@@ -778,6 +778,8 @@ public protocol InternalNearbyServerProtocol: AnyObject {
 
     func handleIncomingConnection(nativeStreamHandle: NativeStreamDelegate)
 
+    func restartServer() async
+
     func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws
 
     func setBleConnectionDetails(bleDetails: BluetoothLeConnectionInfo)
@@ -887,6 +889,21 @@ open class InternalNearbyServer:
                 uniffi_data_rct_ffi_fn_method_internalnearbyserver_handle_incoming_connection(self.uniffiClonePointer(),
                                                                                               FfiConverterCallbackInterfaceNativeStreamDelegate.lower(nativeStreamHandle), $0)
             }
+    }
+
+    open func restartServer() async {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_internalnearbyserver_restart_server(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+        )
     }
 
     open func sendFile(receiver: Device, filePath: String, progressDelegate: SendProgressDelegate?) async throws {
@@ -1412,6 +1429,48 @@ public func FfiConverterTypeConnectionIntentType_lower(_ value: ConnectionIntent
 
 extension ConnectionIntentType: Equatable, Hashable {}
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum ConnectionMedium {
+    case ble
+    case wiFi
+}
+
+public struct FfiConverterTypeConnectionMedium: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectionMedium
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionMedium {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        case 1: return .ble
+
+        case 2: return .wiFi
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectionMedium, into buf: inout [UInt8]) {
+        switch value {
+        case .ble:
+            writeInt(&buf, Int32(1))
+
+        case .wiFi:
+            writeInt(&buf, Int32(2))
+        }
+    }
+}
+
+public func FfiConverterTypeConnectionMedium_lift(_ buf: RustBuffer) throws -> ConnectionMedium {
+    return try FfiConverterTypeConnectionMedium.lift(buf)
+}
+
+public func FfiConverterTypeConnectionMedium_lower(_ value: ConnectionMedium) -> RustBuffer {
+    return FfiConverterTypeConnectionMedium.lower(value)
+}
+
+extension ConnectionMedium: Equatable, Hashable {}
+
 public enum DiscoverySetupError {
     case UnableToSetupUdp(message: String)
 
@@ -1525,6 +1584,9 @@ public enum SendProgressState {
     case unknown
     case connecting
     case requesting
+    case connectionMediumUpdate(
+        medium: ConnectionMedium
+    )
     case transferring(
         progress: Double
     )
@@ -1545,15 +1607,19 @@ public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
 
         case 3: return .requesting
 
-        case 4: return .transferring(
+        case 4: return .connectionMediumUpdate(
+                medium: try FfiConverterTypeConnectionMedium.read(from: &buf)
+            )
+
+        case 5: return .transferring(
                 progress: try FfiConverterDouble.read(from: &buf)
             )
 
-        case 5: return .cancelled
+        case 6: return .cancelled
 
-        case 6: return .finished
+        case 7: return .finished
 
-        case 7: return .declined
+        case 8: return .declined
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1570,18 +1636,22 @@ public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
         case .requesting:
             writeInt(&buf, Int32(3))
 
-        case let .transferring(progress):
+        case let .connectionMediumUpdate(medium):
             writeInt(&buf, Int32(4))
+            FfiConverterTypeConnectionMedium.write(medium, into: &buf)
+
+        case let .transferring(progress):
+            writeInt(&buf, Int32(5))
             FfiConverterDouble.write(progress, into: &buf)
 
         case .cancelled:
-            writeInt(&buf, Int32(5))
-
-        case .finished:
             writeInt(&buf, Int32(6))
 
-        case .declined:
+        case .finished:
             writeInt(&buf, Int32(7))
+
+        case .declined:
+            writeInt(&buf, Int32(8))
         }
     }
 }
@@ -2630,6 +2700,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_connection() != 21706 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_restart_server() != 35734 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_send_file() != 54942 {

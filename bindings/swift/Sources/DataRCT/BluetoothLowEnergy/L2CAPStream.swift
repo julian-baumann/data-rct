@@ -47,7 +47,7 @@ class L2CapStream: NSObject, StreamDelegate, NativeStreamDelegate {
             bytesWritten = channel!.outputStream.write($0.bindMemory(to: UInt8.self).baseAddress!, maxLength: data.count)
         }
         
-        return UInt64(bytesWritten)
+        return UInt64(bytesWritten >= 0 ? bytesWritten : 0)
     }
     
     func disconnect() {

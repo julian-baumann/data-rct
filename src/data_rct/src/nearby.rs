@@ -9,9 +9,6 @@ use std::sync::Arc;
 
 use local_ip_address::local_ip;
 use prost_stream::Stream;
-
-use log::trace;
-
 use protocol::communication::{FileTransferIntent, TransferRequest, TransferRequestResponse};
 use protocol::communication::transfer_request::Intent;
 use protocol::discovery::{BluetoothLeConnectionInfo, Device, DeviceConnectionInfo, TcpConnectionInfo};
@@ -42,10 +39,16 @@ pub enum ConnectionIntentType {
     Clipboard
 }
 
+pub enum ConnectionMedium {
+    BLE,
+    WiFi
+}
+
 pub enum SendProgressState {
     Unknown,
     Connecting,
     Requesting,
+    ConnectionMediumUpdate { medium: ConnectionMedium },
     Transferring { progress: f64 },
     Cancelled,
     Finished,
@@ -156,6 +159,11 @@ impl NearbyServer {
         };
     }
 
+    pub async fn restart_server(&self) {
+        self.stop();
+        self.start();
+    }
+
     async fn initiate_sender<T>(&self, raw_stream: T) -> Result<EncryptedStream<T>, ConnectErrors> where T: Read + Write {
         return Ok(match initiate_sender_communication(raw_stream).await {
             Ok(stream) => stream,
@@ -199,7 +207,7 @@ impl NearbyServer {
         return Err(ConnectErrors::FailedToOpenTcpStream);
     }
 
-    async fn connect(&self, device: Device) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
+    async fn connect(&self, device: Device, progress_delegate: &Option<Box<dyn SendProgressDelegate>>) -> Result<Box<dyn EncryptedReadWrite>, ConnectErrors> {
         let Some(connection_details) = Discovery::get_connection_details(device) else {
             return Err(ConnectErrors::FailedToGetConnectionDetails);
         };
@@ -207,6 +215,8 @@ impl NearbyServer {
         let encrypted_stream = self.connect_tcp(&connection_details).await;
 
         if let Ok(encrypted_stream) = encrypted_stream {
+            NearbyServer::update_progress(&progress_delegate, SendProgressState::ConnectionMediumUpdate { medium: ConnectionMedium::WiFi });
+
             return Ok(encrypted_stream);
         }
 
@@ -237,6 +247,8 @@ impl NearbyServer {
         };
 
         let encrypted_stream = self.initiate_sender(connection).await?;
+        NearbyServer::update_progress(&progress_delegate, SendProgressState::ConnectionMediumUpdate { medium: ConnectionMedium::BLE });
+
         return Ok(Box::new(encrypted_stream));
     }
 
@@ -247,11 +259,9 @@ impl NearbyServer {
     }
 
     pub async fn send_file(&self, receiver: Device, file_path: String, progress_delegate: Option<Box<dyn SendProgressDelegate>>) -> Result<(), ConnectErrors> {
-        init_logger();
-
         NearbyServer::update_progress(&progress_delegate, SendProgressState::Connecting);
 
-        let mut encrypted_stream = match self.connect(receiver).await {
+        let mut encrypted_stream = match self.connect(receiver, &progress_delegate).await {
             Ok(connection) => connection,
             Err(error) => return Err(error)
         };
@@ -290,7 +300,7 @@ impl NearbyServer {
             .write(false)
             .create(false)
             .read(true)
-            .open(file_path)
+            .open(file_path.clone())
             .expect("Failed to open file");
 
         let mut buffer = [0; 1024];
@@ -309,14 +319,15 @@ impl NearbyServer {
 
             all_written += written_bytes;
 
-            trace!("Written {written_bytes:?} of {read_size:?} bytes");
-
             NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_written as f64 / file_size as f64) });
         }
 
-        encrypted_stream.close();
+        if (all_written as f64) < (file_size as f64) {
+            NearbyServer::update_progress(&progress_delegate, SendProgressState::Cancelled);
+        } else {
+            NearbyServer::update_progress(&progress_delegate, SendProgressState::Finished);
+        }
 
-        NearbyServer::update_progress(&progress_delegate, SendProgressState::Finished);
         return Ok(());
     }
 
@@ -354,6 +365,7 @@ impl NearbyServer {
 
     pub fn stop(&self) {
         self.variables.blocking_write().advertise = false;
+        self.variables.blocking_write().tcp_server = None;
 
         if let Some(ble_advertisement_implementation) = &self.variables.blocking_read().ble_server_implementation {
             ble_advertisement_implementation.stop_server();

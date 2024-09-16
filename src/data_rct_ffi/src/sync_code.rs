@@ -83,6 +83,10 @@ impl InternalNearbyServer {
         self.async_runtime.block_on(self.handler.start());
     }
 
+    pub fn restart_server(&self) {
+        self.async_runtime.block_on(self.handler.restart_server());
+    }
+
     pub fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {
         return self.handler.handle_incoming_ble_connection(connection_id, native_stream);
     }

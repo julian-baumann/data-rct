@@ -5,10 +5,7 @@ import com.julian_baumann.data_rct.NativeStreamDelegate
 
 class L2CAPStream(private val socket: BluetoothSocket): NativeStreamDelegate {
     override fun write(data: ByteArray): ULong {
-        println("Want to write ${data.size}")
         socket.outputStream.write(data)
-        socket.outputStream.flush()
-        println("Written ${data.size}")
 
         return data.size.toULong()
     }
@@ -29,7 +26,6 @@ class L2CAPStream(private val socket: BluetoothSocket): NativeStreamDelegate {
     }
 
     override fun disconnect() {
-        println("Close called")
-//        socket.close()
+        socket.close()
     }
 }

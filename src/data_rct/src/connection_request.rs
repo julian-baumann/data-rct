@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -10,6 +10,7 @@ use protocol::discovery::Device;
 use tokio::sync::RwLock;
 use crate::encryption::EncryptedReadWrite;
 use crate::nearby::ConnectionIntentType;
+use crate::BLE_BUFFER_SIZE;
 
 pub enum ReceiveProgressState {
     Unknown,
@@ -119,13 +120,13 @@ impl ConnectionRequest {
         let path = path.join(&file_transfer.file_name.unwrap_or_else(|| "temp.zip".to_string()));
         let path = path.into_os_string();
 
-        let mut file = File::create(path).expect("Failed to create file");
+        let mut file = File::create(path.clone()).expect("Failed to create file");
 
-        let mut buffer = [0; 1024];
+        let mut buffer = [0; BLE_BUFFER_SIZE];
         let mut all_read = 0.0;
 
         while let Ok(read_size) = stream.read(&mut buffer) {
-            if read_size == 0 {
+            if read_size <= 0 {
                 break;
             }
 
@@ -136,9 +137,19 @@ impl ConnectionRequest {
 
             let progress = all_read / file_transfer.file_size as f64;
             self.update_progress(ReceiveProgressState::Receiving { progress });
+
+            if all_read == file_transfer.file_size as f64 {
+                break;
+            }
         }
 
         stream.close();
-        self.update_progress(ReceiveProgressState::Finished);
+
+        if all_read < file_transfer.file_size as f64 {
+            let _ = fs::remove_file(path);
+            self.update_progress(ReceiveProgressState::Cancelled);
+        } else {
+            self.update_progress(ReceiveProgressState::Finished);
+        }
     }
 }

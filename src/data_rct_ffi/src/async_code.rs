@@ -53,25 +53,31 @@ impl InternalNearbyServer {
     }
 
     pub async fn get_advertisement_data(&self) -> Vec<u8> {
-        if self.mut_variables.read().await.discovery_message.is_none() {
-            if self.handler.variables.read().await.advertise {
-                let message = Some(DeviceDiscoveryMessage {
-                    content: Some(
-                        Content::DeviceConnectionInfo(
-                            self.handler.variables
-                                .read()
-                                .await
-                                .device_connection_info.clone()
-                        )
-                    ),
-                }.encode_length_delimited_to_vec());
 
-                self.mut_variables.write().await.discovery_message = message;
-            }
-        }
+        if self.handler.variables.read().await.advertise {
+            return DeviceDiscoveryMessage {
+                content: Some(
+                    Content::DeviceConnectionInfo(
+                        self.handler.variables
+                            .read()
+                            .await
+                            .device_connection_info.clone()
+                    )
+                ),
+            }.encode_length_delimited_to_vec();
 
-        if let Some(discovery_message) = &self.mut_variables.read().await.discovery_message {
-            return discovery_message.clone();
+            // self.mut_variables.write().await.discovery_message = message;
+        } else {
+            // return DeviceDiscoveryMessage {
+            //     content: Some(
+            //         Content::OfflineDeviceId(
+            //             self.handler.variables
+            //                 .read()
+            //                 .await
+            //                 .device_connection_info.device?.id.clone()
+            //         )
+            //     ),
+            // }.encode_length_delimited_to_vec();
         }
 
         return vec![];
@@ -79,6 +85,10 @@ impl InternalNearbyServer {
 
     pub async fn start(&self) {
         self.handler.start().await;
+    }
+
+    pub async fn restart_server(&self) {
+        self.handler.restart_server().await;
     }
 
     pub fn handle_incoming_ble_connection(&self, connection_id: String, native_stream: Box<dyn NativeStreamDelegate>) {

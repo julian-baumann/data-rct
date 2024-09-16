@@ -46,7 +46,7 @@ public class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         streams.append(l2capStream)
 
         Task {
-            await internalHandler.handleIncomingBleConnection(connectionId: connectionDetails.connectionId, nativeStream: l2capStream)
+            internalHandler.handleIncomingBleConnection(connectionId: connectionDetails.connectionId, nativeStream: l2capStream)
         }
     }
     

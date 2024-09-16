@@ -124,11 +124,17 @@ callback interface NativeStreamDelegate {
     void disconnect();
 };
 
+enum ConnectionMedium {
+    "BLE",
+    "WiFi"
+};
+
 [Enum]
 interface SendProgressState {
     Unknown();
     Connecting();
     Requesting();
+    ConnectionMediumUpdate(ConnectionMedium medium);
     Transferring(double progress);
     Cancelled();
     Finished();

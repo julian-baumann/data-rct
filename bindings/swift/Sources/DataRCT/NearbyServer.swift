@@ -8,6 +8,7 @@
 import Foundation
 import CoreBluetooth
 import PhotosUI
+import Network
 
 public enum BluetoothState: Int {
     case unknown = 0
@@ -57,6 +58,7 @@ public protocol NearbyServerDelegate: NearbyConnectionDelegate {
 public class NearbyServer {
     private let internalHandler: InternalNearbyServer
     private let bleServer: BLEPeripheralManager
+    private var serverStarted = false
     public var state: BluetoothState { get { bleServer.state } }
     
     public init(myDevice: Device, storage: String, delegate: NearbyServerDelegate) {
@@ -65,6 +67,26 @@ public class NearbyServer {
 
         internalHandler.addBleImplementation(bleImplementation: bleServer)
         internalHandler.addL2CapClient(delegate: L2CAPClient(internalHandler: internalHandler))
+        
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            if path.status == .satisfied {
+                // WiFi is on
+                print("Connected!")
+                if self.serverStarted {
+                    self.serverStarted = false
+                    Task {
+//                        await self.internalHandler.restartServer()
+//                        self.serverStarted = true
+                    }
+                }
+            } else {
+                // WiFi is off
+            }
+        }
+
+        let queue = DispatchQueue(label: "NetworkMonitor")
+        monitor.start(queue: queue)
     }
     
     public func changeDevice(_ newDevice: Device) {
@@ -75,6 +97,7 @@ public class NearbyServer {
         try bleServer.ensureValidState()
 
         await internalHandler.start()
+        serverStarted = true
     }
     
     @available(macOS 13.0, *)
