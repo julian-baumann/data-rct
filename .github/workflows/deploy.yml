@@ -29,8 +29,8 @@ jobs:
         - uses: nttld/setup-ndk@v1
           id: setup-ndk
           with:
-            ndk-version: 26.2.11394342
-            add-to-path: false
+            ndk-version: r26c
+            add-to-path: true
 
         - name: Validate Gradle wrapper
           uses: gradle/wrapper-validation-action@ccb4328a959376b642e027874838f60f8e596de3
