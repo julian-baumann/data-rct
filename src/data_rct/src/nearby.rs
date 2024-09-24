@@ -122,6 +122,18 @@ impl NearbyServer {
         self.variables.blocking_write().device_connection_info.tcp = Some(tcp_info)
     }
 
+    pub fn get_current_ip(&self) -> Option<String> {
+        let ip = local_ip();
+        if let Ok(my_local_ip) = ip {
+            return Some(my_local_ip.to_string());
+        }
+        else if let Err(error) = ip {
+            println!("Unable to obtain IP address: {:?}", error);
+        }
+
+        return None;
+    }
+
     pub async fn start(&self) {
         if self.variables.read().await.tcp_server.is_none() {
             let delegate = self.variables.read().await.nearby_connection_delegate.clone();
@@ -129,23 +141,20 @@ impl NearbyServer {
             let tcp_server = TcpServer::new(delegate, file_storage).await;
 
             if let Ok(tcp_server) = tcp_server {
-                let ip = local_ip();
+                let ip = self.get_current_ip();
 
-                if let Ok(my_local_ip) = ip {
+                if let Some(my_local_ip) = ip {
                     println!("IP: {:?}", my_local_ip);
                     println!("Port: {:?}", tcp_server.port);
 
                     tcp_server.start_loop();
 
                     self.set_tcp_details(TcpConnectionInfo {
-                        hostname: my_local_ip.to_string(),
+                        hostname: my_local_ip,
                         port: tcp_server.port as u32,
                     });
 
                     self.variables.write().await.tcp_server = Some(tcp_server);
-                }
-                else if let Err(error) = ip {
-                    println!("Unable to obtain IP address: {:?}", error);
                 }
             } else if let Err(error) = tcp_server {
                 println!("Error trying to start TCP server: {:?}", error);
@@ -161,7 +170,7 @@ impl NearbyServer {
 
     pub async fn restart_server(&self) {
         self.stop();
-        self.start();
+        self.start().await;
     }
 
     async fn initiate_sender<T>(&self, raw_stream: T) -> Result<EncryptedStream<T>, ConnectErrors> where T: Read + Write {

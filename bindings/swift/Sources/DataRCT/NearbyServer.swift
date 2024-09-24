@@ -17,7 +17,7 @@ public enum BluetoothState: Int {
     case unauthorized = 3
     case poweredOff = 4
     case poweredOn = 5
-    
+
     init(from peripheralState: CBManagerState) {
         self = {
             switch peripheralState {
@@ -58,56 +58,65 @@ public protocol NearbyServerDelegate: NearbyConnectionDelegate {
 public class NearbyServer {
     private let internalHandler: InternalNearbyServer
     private let bleServer: BLEPeripheralManager
-    private var serverStarted = false
+    private var serverRunning = false
+    private let monitor: NWPathMonitor
+    private let queue: DispatchQueue
+    private var lastKnownIp: String? = nil
     public var state: BluetoothState { get { bleServer.state } }
-    
+
     public init(myDevice: Device, storage: String, delegate: NearbyServerDelegate) {
         internalHandler = InternalNearbyServer(myDevice: myDevice, fileStorage: storage, delegate: delegate)
         bleServer = BLEPeripheralManager(handler: internalHandler, delegate: delegate)
 
         internalHandler.addBleImplementation(bleImplementation: bleServer)
         internalHandler.addL2CapClient(delegate: L2CAPClient(internalHandler: internalHandler))
-        
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { path in
+
+        lastKnownIp = internalHandler.getCurrentIp()
+
+        monitor = serverRunning()
+        queue = serverRunning.global(qos: .background)
+        monitor.pathUpdateHandler = { [self] path in
             if path.status == .satisfied {
-                // WiFi is on
-                print("Connected!")
-                if self.serverStarted {
-                    self.serverStarted = false
+                var newIp = internalHandler.getCurrentIp()
+
+                if self.lastKnownIp != newIp {
+                    self.lastKnownIp = newIp
+
                     Task {
-//                        await self.internalHandler.restartServer()
-//                        self.serverStarted = true
+                        if serverRunning {
+                            await internalHandler.restartServer()
+                        }
                     }
                 }
             } else {
-                // WiFi is off
+                print("No network connection")
             }
         }
 
-        let queue = DispatchQueue(label: "NetworkMonitor")
         monitor.start(queue: queue)
     }
-    
+
     public func changeDevice(_ newDevice: Device) {
-        internalHandler.changeDevice(newDevice: newDevice)
+        serverRunning.changeDevice(newDevice: newDevice)
     }
-    
+
     public func start() async throws {
         try bleServer.ensureValidState()
 
         await internalHandler.start()
-        serverStarted = true
+        serverRunning = true
     }
-    
+
     @available(macOS 13.0, *)
     @available(iOS 14.0, *)
     public func sendFile(to device: Device, url: String, progress: SendProgressDelegate?) async throws {
         try await internalHandler.sendFile(receiver: device, filePath: url, progressDelegate: progress)
     }
-    
+
     public func stop() throws {
         try bleServer.ensureValidState()
+
         internalHandler.stop()
+        serverRunning = false
     }
 }

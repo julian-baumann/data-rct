@@ -104,12 +104,12 @@ private func readBytes(_ reader: inout (data: Data, offset: Data.Index), count: 
 
 // Reads a float at the current offset.
 private func readFloat(_ reader: inout (data: Data, offset: Data.Index)) throws -> Float {
-    return Float(bitPattern: try readInt(&reader))
+    return try Float(bitPattern: readInt(&reader))
 }
 
 // Reads a float at the current offset.
 private func readDouble(_ reader: inout (data: Data, offset: Data.Index)) throws -> Double {
-    return Double(bitPattern: try readInt(&reader))
+    return try Double(bitPattern: readInt(&reader))
 }
 
 // Indicates if the offset has reached the end of the buffer.
@@ -290,7 +290,7 @@ private func uniffiCheckCallStatus(
         // with the message.  But if that code panics, then it just sends back
         // an empty buffer.
         if callStatus.errorBuf.len > 0 {
-            throw UniffiInternalError.rustPanic(try FfiConverterString.lift(callStatus.errorBuf))
+            throw try UniffiInternalError.rustPanic(FfiConverterString.lift(callStatus.errorBuf))
         } else {
             callStatus.errorBuf.deallocate()
             throw UniffiInternalError.rustPanic("Rust panic")
@@ -471,7 +471,7 @@ private struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        return try String(bytes: readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -486,7 +486,7 @@ private struct FfiConverterData: FfiConverterRustBuffer {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
         let len: Int32 = try readInt(&buf)
-        return Data(try readBytes(&buf, count: Int(len)))
+        return try Data(readBytes(&buf, count: Int(len)))
     }
 
     public static func write(_ value: Data, into buf: inout [UInt8]) {
@@ -684,7 +684,7 @@ open class InternalDiscovery:
     }
 
     public convenience init(delegate: DeviceListUpdateDelegate?) throws {
-        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeDiscoverySetupError.lift) {
+        try self.init(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeDiscoverySetupError.lift) {
             uniffi_data_rct_ffi_fn_constructor_internaldiscovery_new(
                 FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate.lower(delegate), $0
             )
@@ -773,6 +773,8 @@ public protocol InternalNearbyServerProtocol: AnyObject {
     func changeDevice(newDevice: Device)
 
     func getAdvertisementData() async -> Data
+
+    func getCurrentIp() -> String?
 
     func handleIncomingBleConnection(connectionId: String, nativeStream: NativeStreamDelegate)
 
@@ -871,6 +873,15 @@ open class InternalNearbyServer:
             freeFunc: ffi_data_rct_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterData.lift,
             errorHandler: nil
+        )
+    }
+
+    open func getCurrentIp() -> String? {
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    uniffi_data_rct_ffi_fn_method_internalnearbyserver_get_current_ip(self.uniffiClonePointer(), $0)
+                }
         )
     }
 
@@ -1322,14 +1333,14 @@ public struct FfiConverterTypeConnectErrors: FfiConverterRustBuffer {
         case 4: return .FailedToGetTcpDetails
         case 5: return .FailedToGetSocketAddress
         case 6: return .FailedToOpenTcpStream
-        case 7: return .FailedToEncryptStream(
-                error: try FfiConverterString.read(from: &buf)
+        case 7: return try .FailedToEncryptStream(
+                error: FfiConverterString.read(from: &buf)
             )
-        case 8: return .FailedToDetermineFileSize(
-                error: try FfiConverterString.read(from: &buf)
+        case 8: return try .FailedToDetermineFileSize(
+                error: FfiConverterString.read(from: &buf)
             )
-        case 9: return .FailedToGetTransferRequestResponse(
-                error: try FfiConverterString.read(from: &buf)
+        case 9: return try .FailedToGetTransferRequestResponse(
+                error: FfiConverterString.read(from: &buf)
             )
         case 10: return .FailedToGetBleDetails
         case 11: return .InternalBleHandlerNotAvailable
@@ -1487,12 +1498,12 @@ public struct FfiConverterTypeDiscoverySetupError: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DiscoverySetupError {
         let variant: Int32 = try readInt(&buf)
         switch variant {
-        case 1: return .UnableToSetupUdp(
-                message: try FfiConverterString.read(from: &buf)
+        case 1: return try .UnableToSetupUdp(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 2: return .UnableToSetupMdns(
-                message: try FfiConverterString.read(from: &buf)
+        case 2: return try .UnableToSetupMdns(
+                message: FfiConverterString.read(from: &buf)
             )
 
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1535,8 +1546,8 @@ public struct FfiConverterTypeReceiveProgressState: FfiConverterRustBuffer {
 
         case 2: return .handshake
 
-        case 3: return .receiving(
-                progress: try FfiConverterDouble.read(from: &buf)
+        case 3: return try .receiving(
+                progress: FfiConverterDouble.read(from: &buf)
             )
 
         case 4: return .cancelled
@@ -1607,12 +1618,12 @@ public struct FfiConverterTypeSendProgressState: FfiConverterRustBuffer {
 
         case 3: return .requesting
 
-        case 4: return .connectionMediumUpdate(
-                medium: try FfiConverterTypeConnectionMedium.read(from: &buf)
+        case 4: return try .connectionMediumUpdate(
+                medium: FfiConverterTypeConnectionMedium.read(from: &buf)
             )
 
-        case 5: return .transferring(
-                progress: try FfiConverterDouble.read(from: &buf)
+        case 5: return try .transferring(
+                progress: FfiConverterDouble.read(from: &buf)
             )
 
         case 6: return .cancelled
@@ -1680,8 +1691,8 @@ public struct FfiConverterTypeTransmissionSetupError: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TransmissionSetupError {
         let variant: Int32 = try readInt(&buf)
         switch variant {
-        case 1: return .unableToStartTcpServer(
-                error: try FfiConverterString.read(from: &buf)
+        case 1: return try .unableToStartTcpServer(
+                error: FfiConverterString.read(from: &buf)
             )
 
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1934,8 +1945,8 @@ private enum UniffiCallbackInterfaceDeviceListUpdateDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.deviceAdded(
-                value: try FfiConverterTypeDevice.lift(value)
+            let makeCall = { try uniffiObj.deviceAdded(
+                value: FfiConverterTypeDevice.lift(value)
             ) }
 
             let writeReturn = { () }
@@ -1959,8 +1970,8 @@ private enum UniffiCallbackInterfaceDeviceListUpdateDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.deviceRemoved(
-                deviceId: try FfiConverterString.lift(deviceId)
+            let makeCall = { try uniffiObj.deviceRemoved(
+                deviceId: FfiConverterString.lift(deviceId)
             ) }
 
             let writeReturn = { () }
@@ -2035,10 +2046,10 @@ private enum UniffiCallbackInterfaceL2CapDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.openL2capConnection(
-                connectionId: try FfiConverterString.lift(connectionId),
-                peripheralUuid: try FfiConverterString.lift(peripheralUuid),
-                psm: try FfiConverterUInt32.lift(psm)
+            let makeCall = { try uniffiObj.openL2capConnection(
+                connectionId: FfiConverterString.lift(connectionId),
+                peripheralUuid: FfiConverterString.lift(peripheralUuid),
+                psm: FfiConverterUInt32.lift(psm)
             ) }
 
             let writeReturn = { () }
@@ -2117,8 +2128,8 @@ private enum UniffiCallbackInterfaceNativeStreamDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.write(
-                data: try FfiConverterData.lift(data)
+            let makeCall = { try uniffiObj.write(
+                data: FfiConverterData.lift(data)
             ) }
 
             let writeReturn = { uniffiOutReturn.pointee = FfiConverterUInt64.lower($0) }
@@ -2142,8 +2153,8 @@ private enum UniffiCallbackInterfaceNativeStreamDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.read(
-                bufferLength: try FfiConverterUInt64.lift(bufferLength)
+            let makeCall = { try uniffiObj.read(
+                bufferLength: FfiConverterUInt64.lift(bufferLength)
             ) }
 
             let writeReturn = { uniffiOutReturn.pointee = FfiConverterData.lower($0) }
@@ -2262,8 +2273,8 @@ private enum UniffiCallbackInterfaceNearbyConnectionDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.receivedConnectionRequest(
-                request: try FfiConverterTypeConnectionRequest.lift(request)
+            let makeCall = { try uniffiObj.receivedConnectionRequest(
+                request: FfiConverterTypeConnectionRequest.lift(request)
             ) }
 
             let writeReturn = { () }
@@ -2336,8 +2347,8 @@ private enum UniffiCallbackInterfaceReceiveProgressDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.progressChanged(
-                progress: try FfiConverterTypeReceiveProgressState.lift(progress)
+            let makeCall = { try uniffiObj.progressChanged(
+                progress: FfiConverterTypeReceiveProgressState.lift(progress)
             ) }
 
             let writeReturn = { () }
@@ -2410,8 +2421,8 @@ private enum UniffiCallbackInterfaceSendProgressDelegate {
                 uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
                 return
             }
-            let makeCall = { uniffiObj.progressChanged(
-                progress: try FfiConverterTypeSendProgressState.lift(progress)
+            let makeCall = { try uniffiObj.progressChanged(
+                progress: FfiConverterTypeSendProgressState.lift(progress)
             ) }
 
             let writeReturn = { () }
@@ -2694,6 +2705,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_get_advertisement_data() != 9521 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_get_current_ip() != 11877 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internalnearbyserver_handle_incoming_ble_connection() != 2916 {

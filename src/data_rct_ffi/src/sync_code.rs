@@ -35,6 +35,10 @@ impl InternalNearbyServer {
         }
     }
 
+    pub fn get_current_ip(&self) -> Option<String> {
+        return self.handler.get_current_ip();
+    }
+
     pub fn add_l2_cap_client(&self, delegate: Box<dyn L2CapDelegate>) {
         self.handler.add_l2_cap_client(delegate);
     }
