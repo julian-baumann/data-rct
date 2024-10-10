@@ -17,10 +17,10 @@ import java.util.*
 
 
 @SuppressLint("MissingPermission")
-class BluetoothGattCallbackTest(private val internal: InternalDiscovery, private var discoveredPeripherals: MutableList<BluetoothDevice>) : BluetoothGattCallback() {
+class BluetoothGattCallbackImplementation(private val internal: InternalDiscovery, private var discoveredPeripherals: MutableList<BluetoothDevice>) : BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (newState == BluetoothProfile.STATE_CONNECTED) {
-            gatt.requestMtu(120)
+            gatt.requestMtu(150)
         } else {
 //                isBusy = false
 //                discoveredPeripherals.remove(gatt.device)
@@ -109,7 +109,6 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     }
 
-    private val bluetoothLeScanner = bluetoothAdapter.adapter.bluetoothLeScanner
     private var isBusy = false
 
     public companion object {
@@ -128,13 +127,14 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         )
 
         val settings = ScanSettings.Builder()
-            .setLegacy(true)
+            .setLegacy(false)
             .setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
             .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY) // or SCAN_MODE_BALANCED
+            .setReportDelay(0L)
             .build()
 
-        bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
+        bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
     }
 
     override fun stopScanning() {
@@ -142,7 +142,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             throw BlePermissionNotGrantedException()
         }
 
-        bluetoothLeScanner.stopScan(leScanCallback)
+        bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
     }
 
     @SuppressLint("MissingPermission")
@@ -154,7 +154,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
                 result.device.connectGatt(
                     context,
                     false,
-                    BluetoothGattCallbackTest(internal, discoveredPeripherals),
+                    BluetoothGattCallbackImplementation(internal, discoveredPeripherals),
                     BluetoothDevice.TRANSPORT_LE,
                     BluetoothDevice.PHY_LE_2M_MASK
                 )
