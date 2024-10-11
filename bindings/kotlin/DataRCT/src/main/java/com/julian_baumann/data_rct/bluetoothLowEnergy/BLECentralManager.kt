@@ -13,6 +13,7 @@ import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleDiscoveryImplementationDelegate
 import com.julian_baumann.data_rct.InternalDiscovery
+import kotlinx.coroutines.*
 import java.util.*
 
 
@@ -109,6 +110,8 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     }
 
+    private var scanJob: Job? = null
+    private val scanIntervalMillis = 5000L
 
     companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
@@ -130,10 +133,19 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         val settings = ScanSettings.Builder()
             .setLegacy(false)
             .setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
-            .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+            .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .setReportDelay(0L)
             .build()
+
+        scanJob = CoroutineScope(Dispatchers.IO).launch {
+            while (isActive) {
+                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
+                delay(scanIntervalMillis)
+                bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
+            }
+        }
 
         bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
     }
@@ -143,6 +155,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             throw BlePermissionNotGrantedException()
         }
 
+        scanJob?.cancel()
         bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
     }
 
