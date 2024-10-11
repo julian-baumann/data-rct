@@ -22,9 +22,8 @@ class BluetoothGattCallbackImplementation(private val internal: InternalDiscover
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             gatt.requestMtu(150)
-        } else {
-//                isBusy = false
-//                discoveredPeripherals.remove(gatt.device)
+        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            discoveredPeripherals.remove(gatt.device)
         }
     }
 
@@ -127,7 +126,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         val scanFilter: List<ScanFilter> = listOf(
             ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(discoveryServiceUUID))
+//                .setServiceUuid(ParcelUuid(discoveryServiceUUID))
                 .build()
         )
 
