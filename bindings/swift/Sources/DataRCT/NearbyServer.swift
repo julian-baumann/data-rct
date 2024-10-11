@@ -73,8 +73,8 @@ public class NearbyServer {
 
         lastKnownIp = internalHandler.getCurrentIp()
 
-        monitor = serverRunning()
-        queue = serverRunning.global(qos: .background)
+        monitor = NWPathMonitor()
+        queue = DispatchQueue.global(qos: .background)
         monitor.pathUpdateHandler = { [self] path in
             if path.status == .satisfied {
                 var newIp = internalHandler.getCurrentIp()
@@ -97,7 +97,7 @@ public class NearbyServer {
     }
 
     public func changeDevice(_ newDevice: Device) {
-        serverRunning.changeDevice(newDevice: newDevice)
+        internalHandler.changeDevice(newDevice: newDevice)
     }
 
     public func start() async throws {

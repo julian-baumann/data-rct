@@ -111,7 +111,8 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     }
 
     private var scanJob: Job? = null
-    private val scanIntervalMillis = 5000L
+    private val scanIntervalMillis = 3000L
+    private val pauseBetweenScans = 1000L
 
     companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
@@ -143,7 +144,9 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             while (isActive) {
                 bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
                 delay(scanIntervalMillis)
+                discoveredPeripherals.clear()
                 bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
+                delay(pauseBetweenScans)
             }
         }
 
@@ -161,17 +164,28 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
     @SuppressLint("MissingPermission")
     private val leScanCallback: ScanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            if (!discoveredPeripherals.contains(result.device)) {
-                discoveredPeripherals.add(result.device)
+        fun addDevice(device: BluetoothDevice) {
+            if (!discoveredPeripherals.contains(device)) {
+                discoveredPeripherals.add(device)
 
-                result.device.connectGatt(
+                device.connectGatt(
                     context,
                     false,
                     BluetoothGattCallbackImplementation(internal, discoveredPeripherals),
                     BluetoothDevice.TRANSPORT_LE,
                     BluetoothDevice.PHY_LE_2M_MASK
                 )
+            }
+        }
+
+
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            addDevice(result.device)
+        }
+
+        override fun onBatchScanResults(results: List<ScanResult>) {
+            results.forEach { result ->
+                addDevice(result.device)
             }
         }
     }
