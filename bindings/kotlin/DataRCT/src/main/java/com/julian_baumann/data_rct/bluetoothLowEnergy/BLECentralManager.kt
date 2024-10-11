@@ -109,13 +109,14 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     }
 
-    private var isBusy = false
 
-    public companion object {
+    companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
     }
 
     override fun startScanning() {
+        discoveredPeripherals.clear()
+
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
             throw BlePermissionNotGrantedException()
         }
@@ -130,7 +131,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             .setLegacy(false)
             .setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
             .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY) // or SCAN_MODE_BALANCED
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0L)
             .build()
 
