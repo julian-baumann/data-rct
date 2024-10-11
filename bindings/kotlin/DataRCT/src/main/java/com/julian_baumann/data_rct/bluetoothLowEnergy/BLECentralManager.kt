@@ -126,7 +126,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         val scanFilter: List<ScanFilter> = listOf(
             ScanFilter.Builder()
-//                .setServiceUuid(ParcelUuid(discoveryServiceUUID))
+                .setServiceUuid(ParcelUuid(discoveryServiceUUID))
                 .build()
         )
 
@@ -141,15 +141,13 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         scanJob = CoroutineScope(Dispatchers.IO).launch {
             while (isActive) {
-                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
+                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(null, settings, leScanCallback)
                 delay(scanIntervalMillis)
                 discoveredPeripherals.clear()
                 bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
                 delay(pauseBetweenScans)
             }
         }
-
-        bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
     }
 
     override fun stopScanning() {
