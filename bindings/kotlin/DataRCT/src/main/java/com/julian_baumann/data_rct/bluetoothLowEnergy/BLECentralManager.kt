@@ -166,15 +166,15 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             Log.d("InterShare", "Found device: ${device.name} (${device.address}): ${device.uuids}")
             if (!discoveredPeripherals.contains(device)) {
                 discoveredPeripherals.add(device)
-
-                device.connectGatt(
-                    context,
-                    false,
-                    BluetoothGattCallbackImplementation(internal, discoveredPeripherals),
-                    BluetoothDevice.TRANSPORT_LE,
-                    BluetoothDevice.PHY_LE_2M_MASK
-                )
             }
+
+            device.connectGatt(
+                context,
+                false,
+                BluetoothGattCallbackImplementation(internal, discoveredPeripherals),
+                BluetoothDevice.TRANSPORT_LE,
+                BluetoothDevice.PHY_LE_2M_MASK
+            )
         }
 
 
