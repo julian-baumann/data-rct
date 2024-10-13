@@ -79,8 +79,7 @@ class BLEPeripheralManager: NSObject, BleServerImplementationDelegate, CBPeriphe
         peripheralManager.add(service)
 
         peripheralManager.startAdvertising([
-            CBAdvertisementDataServiceUUIDsKey: [ServiceUUID],
-            CBAdvertisementDataLocalNameKey: "InterShare Phone"
+            CBAdvertisementDataServiceUUIDsKey: [ServiceUUID]
         ])
     }
     
