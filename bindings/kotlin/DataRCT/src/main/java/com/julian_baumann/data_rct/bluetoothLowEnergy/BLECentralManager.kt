@@ -127,6 +127,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     private var scanJob: Job? = null
     private val scanIntervalMillis = 8000L
     private val pauseBetweenScans = 2000L
+    private var isScanning = false
 
     companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
@@ -134,6 +135,11 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     }
 
     override fun startScanning() {
+        if (isScanning) {
+            return
+        }
+
+        isScanning = true
         discoveredPeripherals.clear()
         currentlyConnectedDevices.clear()
 
@@ -173,6 +179,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         scanJob?.cancel()
         bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
+        isScanning = false
     }
 
     @SuppressLint("MissingPermission")
