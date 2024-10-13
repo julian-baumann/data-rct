@@ -181,9 +181,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
             if (!currentlyConnectedDevices.contains(device)) {
                 currentlyConnectedDevices.add(device)
                 Log.d("InterShare SDK", "Found device: ${device.name} (${device.address}): ${device.uuids}")
-            }
 
-            CoroutineScope(Dispatchers.IO).launch {
                 device.connectGatt(
                     context,
                     false,
