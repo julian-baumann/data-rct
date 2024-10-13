@@ -53,6 +53,10 @@ impl InternalDiscovery {
         })
     }
 
+    pub fn get_devices(&self) -> Vec<Device> {
+        return self.handler.read().expect("Failed to lock handler").get_devices()
+    }
+
     pub fn add_ble_implementation(&self, implementation: Box<dyn BleDiscoveryImplementationDelegate>) {
         self.handler.write().expect("Failed to lock handler").add_ble_implementation(implementation);
     }

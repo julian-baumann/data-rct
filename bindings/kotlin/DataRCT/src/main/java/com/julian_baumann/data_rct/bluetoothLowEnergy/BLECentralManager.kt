@@ -14,7 +14,6 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleDiscoveryImplementationDelegate
 import com.julian_baumann.data_rct.InternalDiscovery
-import com.julian_baumann.data_rct.bluetoothLowEnergy.BLECentralManager.Companion
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -31,7 +30,7 @@ class BluetoothGattCallbackImplementation(
             gatt.close()
             currentlyConnectedDevices.remove(gatt.device)
         } else {
-            Log.d("BLE", "newState: ${newState}")
+            Log.d("BLE", "newState: $newState")
             currentlyConnectedDevices.remove(gatt.device)
         }
     }
@@ -184,13 +183,15 @@ class BLECentralManager(private val context: Context, private val internal: Inte
                 Log.d("InterShare SDK", "Found device: ${device.name} (${device.address}): ${device.uuids}")
             }
 
-            device.connectGatt(
-                context,
-                false,
-                BluetoothGattCallbackImplementation(internal, currentlyConnectedDevices, discoveredPeripherals),
-                BluetoothDevice.TRANSPORT_LE,
-                BluetoothDevice.PHY_LE_2M_MASK
-            )
+            CoroutineScope(Dispatchers.IO).launch {
+                device.connectGatt(
+                    context,
+                    false,
+                    BluetoothGattCallbackImplementation(internal, currentlyConnectedDevices, discoveredPeripherals),
+                    BluetoothDevice.TRANSPORT_LE,
+                    BluetoothDevice.PHY_LE_2M_MASK
+                )
+            }
         }
 
 
