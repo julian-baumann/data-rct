@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleDiscoveryImplementationDelegate
 import com.julian_baumann.data_rct.InternalDiscovery
@@ -23,6 +24,7 @@ class BluetoothGattCallbackImplementation(private val internal: InternalDiscover
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             gatt.requestMtu(150)
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            gatt.close()
             discoveredPeripherals.remove(gatt.device)
         }
     }
@@ -110,8 +112,8 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     }
 
     private var scanJob: Job? = null
-    private val scanIntervalMillis = 3000L
-    private val pauseBetweenScans = 1000L
+    private val scanIntervalMillis = 8000L
+    private val pauseBetweenScans = 2000L
 
     companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
@@ -141,9 +143,8 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         scanJob = CoroutineScope(Dispatchers.IO).launch {
             while (isActive) {
-                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(null, settings, leScanCallback)
+                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
                 delay(scanIntervalMillis)
-                discoveredPeripherals.clear()
                 bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
                 delay(pauseBetweenScans)
             }
@@ -162,6 +163,7 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     @SuppressLint("MissingPermission")
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         fun addDevice(device: BluetoothDevice) {
+            Log.d("InterShare", "Found device: ${device.name} (${device.address}): ${device.uuids}")
             if (!discoveredPeripherals.contains(device)) {
                 discoveredPeripherals.add(device)
 
