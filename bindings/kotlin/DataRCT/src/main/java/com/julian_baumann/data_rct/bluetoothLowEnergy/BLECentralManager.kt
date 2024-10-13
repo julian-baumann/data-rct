@@ -88,11 +88,13 @@ class BluetoothGattCallbackImplementation(
         status: Int
     ) {
         super.onCharacteristicRead(gatt, characteristic, value, status)
-        handleCharacteristicData(characteristic.value, status, gatt)
+        handleCharacteristicData(value, status, gatt)
     }
 
     private fun handleCharacteristicData(data: ByteArray, status: Int, gatt: BluetoothGatt) {
         if (status == BluetoothGatt.GATT_SUCCESS) {
+            Log.d("InterShare SDK", "GATT READ was a Success")
+
             internal.parseDiscoveryMessage(data, gatt.device.address)
 
             if (!discoveredPeripherals.contains(gatt.device)) {
@@ -179,17 +181,16 @@ class BLECentralManager(private val context: Context, private val internal: Inte
         fun addDevice(device: BluetoothDevice) {
             if (!currentlyConnectedDevices.contains(device)) {
                 currentlyConnectedDevices.add(device)
-
-                Log.d("BLE", "Found device: ${device.name} (${device.address}): ${device.uuids}")
-
-                device.connectGatt(
-                    context,
-                    false,
-                    BluetoothGattCallbackImplementation(internal, currentlyConnectedDevices, discoveredPeripherals),
-                    BluetoothDevice.TRANSPORT_LE,
-                    BluetoothDevice.PHY_LE_2M_MASK
-                )
+                Log.d("InterShare SDK", "Found device: ${device.name} (${device.address}): ${device.uuids}")
             }
+
+            device.connectGatt(
+                context,
+                false,
+                BluetoothGattCallbackImplementation(internal, currentlyConnectedDevices, discoveredPeripherals),
+                BluetoothDevice.TRANSPORT_LE,
+                BluetoothDevice.PHY_LE_2M_MASK
+            )
         }
 
 
