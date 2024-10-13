@@ -83,9 +83,16 @@ impl Discovery {
                         device_connection_info.ble = Some(ble_info);
                     }
                 }
+                
+                if DISCOVERED_DEVICES.get().unwrap().write().unwrap().contains_key(&device.id) {
+                    if !DISCOVERED_DEVICES.get().unwrap().write().unwrap().get(&device.id).unwrap().eq(&device_connection_info) {
+                        self.add_discovered_device(device.clone());
+                    }
+                } else {
+                    self.add_discovered_device(device.clone());
+                }
 
                 DISCOVERED_DEVICES.get().unwrap().write().unwrap().insert(device.id.clone(), device_connection_info.clone());
-                self.add_discovered_device(device.clone());
             }
             Some(Content::OfflineDeviceId(device_id)) => {
                 DISCOVERED_DEVICES.get().unwrap().write().unwrap().remove(&device_id);
