@@ -61,7 +61,6 @@ impl Discovery {
 
     pub fn start(&self) {
         DISCOVERED_DEVICES.get().unwrap().write().unwrap().clear();
-        println!("Clear called");
 
         if let Some(ble_discovery_implementation) = &self.ble_discovery_implementation {
             ble_discovery_implementation.start_scanning();
