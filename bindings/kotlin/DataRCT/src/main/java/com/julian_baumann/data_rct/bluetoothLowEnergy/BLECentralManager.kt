@@ -30,6 +30,9 @@ class BluetoothGattCallbackImplementation(
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             gatt.close()
             currentlyConnectedDevices.remove(gatt.device)
+        } else {
+            Log.d("BLE", "newState: ${newState}")
+            currentlyConnectedDevices.remove(gatt.device)
         }
     }
 
@@ -174,10 +177,10 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     @SuppressLint("MissingPermission")
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         fun addDevice(device: BluetoothDevice) {
-            Log.d("InterShare", "Found device: ${device.name} (${device.address}): ${device.uuids}")
-
             if (!currentlyConnectedDevices.contains(device)) {
                 currentlyConnectedDevices.add(device)
+
+                Log.d("BLE", "Found device: ${device.name} (${device.address}): ${device.uuids}")
 
                 device.connectGatt(
                     context,
