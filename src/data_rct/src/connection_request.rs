@@ -98,8 +98,6 @@ impl ConnectionRequest {
 
     pub fn cancel(&self) {
         println!("trying to cancel");
-        let mut connection_guard = self.connection.lock().unwrap();
-        connection_guard.close()
     }
 
     pub fn accept(&self) {
