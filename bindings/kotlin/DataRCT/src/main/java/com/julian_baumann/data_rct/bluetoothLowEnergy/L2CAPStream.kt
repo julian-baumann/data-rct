@@ -1,13 +1,20 @@
 package com.julian_baumann.data_rct.bluetoothLowEnergy
 
 import android.bluetooth.BluetoothSocket
+import android.util.Log
 import com.julian_baumann.data_rct.NativeStreamDelegate
 
 class L2CAPStream(private val socket: BluetoothSocket): NativeStreamDelegate {
     override fun write(data: ByteArray): ULong {
-        socket.outputStream.write(data)
+        try {
+            socket.outputStream.write(data)
 
-        return data.size.toULong()
+            return data.size.toULong()
+        } catch (exception: Exception) {
+            Log.w("L2CAPStream write exception:", exception)
+
+            return 0.toULong()
+        }
     }
 
     override fun read(bufferLength: ULong): ByteArray {
