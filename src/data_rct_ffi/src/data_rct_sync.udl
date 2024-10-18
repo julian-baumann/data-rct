@@ -91,6 +91,8 @@ interface ConnectionRequest {
     ClipboardTransferIntent? get_clipboard_intent();
     void set_progress_delegate(ReceiveProgressDelegate delegate);
 
+    [Async]
+    void cancel();
     void accept();
     void decline();
 };
@@ -112,6 +114,7 @@ interface InternalDiscovery {
     [Throws=DiscoverySetupError]
     constructor(DeviceListUpdateDelegate? delegate);
     void add_ble_implementation(BleDiscoveryImplementationDelegate implementation);
+    sequence<Device> get_devices();
     void start();
     void stop();
     void parse_discovery_message(bytes data, string? ble_uuid);

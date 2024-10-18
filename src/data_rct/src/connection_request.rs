@@ -24,7 +24,8 @@ pub trait ReceiveProgressDelegate: Send + Sync + Debug {
 }
 
 struct SharedVariables {
-    receive_progress_delegate: Option<Box<dyn ReceiveProgressDelegate>>
+    receive_progress_delegate: Option<Box<dyn ReceiveProgressDelegate>>,
+    should_cancel: bool
 }
 
 pub struct ConnectionRequest {
@@ -41,7 +42,8 @@ impl ConnectionRequest {
             connection: Arc::new(Mutex::new(connection)),
             file_storage,
             variables: Arc::new(RwLock::new(SharedVariables {
-                receive_progress_delegate: None
+                receive_progress_delegate: None,
+                should_cancel: false
             }))
         }
     }
@@ -96,6 +98,11 @@ impl ConnectionRequest {
         }
     }
 
+    pub async fn cancel(&self) {
+        println!("trying to cancel");
+        self.variables.write().await.should_cancel = true;
+    }
+
     pub fn accept(&self) {
         self.update_progress(ReceiveProgressState::Handshake);
         let mut connection_guard = self.connection.lock().unwrap();
@@ -126,6 +133,10 @@ impl ConnectionRequest {
         let mut all_read = 0.0;
 
         while let Ok(read_size) = stream.read(&mut buffer) {
+            if self.variables.blocking_read().should_cancel {
+                break;
+            }
+
             if read_size <= 0 {
                 break;
             }

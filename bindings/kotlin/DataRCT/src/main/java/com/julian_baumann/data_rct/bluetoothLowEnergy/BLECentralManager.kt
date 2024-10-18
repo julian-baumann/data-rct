@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.julian_baumann.data_rct.BleDiscoveryImplementationDelegate
 import com.julian_baumann.data_rct.InternalDiscovery
@@ -18,12 +19,19 @@ import java.util.*
 
 
 @SuppressLint("MissingPermission")
-class BluetoothGattCallbackImplementation(private val internal: InternalDiscovery, private var discoveredPeripherals: MutableList<BluetoothDevice>) : BluetoothGattCallback() {
+class BluetoothGattCallbackImplementation(
+    private val internal: InternalDiscovery,
+    private var currentlyConnectedDevices: MutableList<BluetoothDevice>,
+    private var discoveredPeripherals: MutableList<BluetoothDevice>) : BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             gatt.requestMtu(150)
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-            discoveredPeripherals.remove(gatt.device)
+            gatt.close()
+            currentlyConnectedDevices.remove(gatt.device)
+        } else {
+            Log.d("BLE", "newState: $newState")
+            currentlyConnectedDevices.remove(gatt.device)
         }
     }
 
@@ -79,12 +87,19 @@ class BluetoothGattCallbackImplementation(private val internal: InternalDiscover
         status: Int
     ) {
         super.onCharacteristicRead(gatt, characteristic, value, status)
-        handleCharacteristicData(characteristic.value, status, gatt)
+        handleCharacteristicData(value, status, gatt)
     }
 
     private fun handleCharacteristicData(data: ByteArray, status: Int, gatt: BluetoothGatt) {
         if (status == BluetoothGatt.GATT_SUCCESS) {
+            Log.d("InterShare SDK", "GATT READ was a Success")
+
             internal.parseDiscoveryMessage(data, gatt.device.address)
+
+            if (!discoveredPeripherals.contains(gatt.device)) {
+                discoveredPeripherals.add(gatt.device)
+            }
+
             gatt.disconnect()
 //            isBusy = false
 //            discoveredPeripherals.remove(gatt.device)
@@ -110,15 +125,23 @@ class BLECentralManager(private val context: Context, private val internal: Inte
     }
 
     private var scanJob: Job? = null
-    private val scanIntervalMillis = 3000L
-    private val pauseBetweenScans = 1000L
+    private val scanIntervalMillis = 8000L
+    private val pauseBetweenScans = 2000L
+    private var isScanning = false
 
     companion object {
         var discoveredPeripherals = mutableListOf<BluetoothDevice>()
+        var currentlyConnectedDevices = mutableListOf<BluetoothDevice>()
     }
 
     override fun startScanning() {
+        if (isScanning) {
+            return
+        }
+
+        isScanning = true
         discoveredPeripherals.clear()
+        currentlyConnectedDevices.clear()
 
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
             throw BlePermissionNotGrantedException()
@@ -141,9 +164,8 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         scanJob = CoroutineScope(Dispatchers.IO).launch {
             while (isActive) {
-                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(null, settings, leScanCallback)
+                bluetoothAdapter.adapter.bluetoothLeScanner.startScan(scanFilter, settings, leScanCallback)
                 delay(scanIntervalMillis)
-                discoveredPeripherals.clear()
                 bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
                 delay(pauseBetweenScans)
             }
@@ -157,18 +179,20 @@ class BLECentralManager(private val context: Context, private val internal: Inte
 
         scanJob?.cancel()
         bluetoothAdapter.adapter.bluetoothLeScanner.stopScan(leScanCallback)
+        isScanning = false
     }
 
     @SuppressLint("MissingPermission")
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         fun addDevice(device: BluetoothDevice) {
-            if (!discoveredPeripherals.contains(device)) {
-                discoveredPeripherals.add(device)
+            if (!currentlyConnectedDevices.contains(device)) {
+                currentlyConnectedDevices.add(device)
+                Log.d("InterShare SDK", "Found device: ${device.name} (${device.address}): ${device.uuids}")
 
                 device.connectGatt(
                     context,
                     false,
-                    BluetoothGattCallbackImplementation(internal, discoveredPeripherals),
+                    BluetoothGattCallbackImplementation(internal, currentlyConnectedDevices, discoveredPeripherals),
                     BluetoothDevice.TRANSPORT_LE,
                     BluetoothDevice.PHY_LE_2M_MASK
                 )

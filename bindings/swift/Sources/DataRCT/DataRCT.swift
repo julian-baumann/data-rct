@@ -499,6 +499,8 @@ private struct FfiConverterData: FfiConverterRustBuffer {
 public protocol ConnectionRequestProtocol: AnyObject {
     func accept()
 
+    func cancel() async
+
     func decline()
 
     func getClipboardIntent() -> ClipboardTransferIntent?
@@ -551,6 +553,21 @@ open class ConnectionRequest:
             rustCall {
                 uniffi_data_rct_ffi_fn_method_connectionrequest_accept(self.uniffiClonePointer(), $0)
             }
+    }
+
+    open func cancel() async {
+        return try! await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_data_rct_ffi_fn_method_connectionrequest_cancel(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_data_rct_ffi_rust_future_poll_void,
+            completeFunc: ffi_data_rct_ffi_rust_future_complete_void,
+            freeFunc: ffi_data_rct_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+        )
     }
 
     open func decline() {
@@ -646,6 +663,8 @@ public func FfiConverterTypeConnectionRequest_lower(_ value: ConnectionRequest) 
 public protocol InternalDiscoveryProtocol: AnyObject {
     func addBleImplementation(implementation: BleDiscoveryImplementationDelegate)
 
+    func getDevices() -> [Device]
+
     func parseDiscoveryMessage(data: Data, bleUuid: String?)
 
     func start()
@@ -701,6 +720,15 @@ open class InternalDiscovery:
                 uniffi_data_rct_ffi_fn_method_internaldiscovery_add_ble_implementation(self.uniffiClonePointer(),
                                                                                        FfiConverterCallbackInterfaceBleDiscoveryImplementationDelegate.lower(implementation), $0)
             }
+    }
+
+    open func getDevices() -> [Device] {
+        return try! FfiConverterSequenceTypeDevice.lift(
+            try!
+                rustCall {
+                    uniffi_data_rct_ffi_fn_method_internaldiscovery_get_devices(self.uniffiClonePointer(), $0)
+                }
+        )
     }
 
     open func parseDiscoveryMessage(data: Data, bleUuid: String?) {
@@ -2577,6 +2605,28 @@ private struct FfiConverterOptionCallbackInterfaceSendProgressDelegate: FfiConve
     }
 }
 
+private struct FfiConverterSequenceTypeDevice: FfiConverterRustBuffer {
+    typealias SwiftType = [Device]
+
+    public static func write(_ value: [Device], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDevice.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Device] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Device]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            try seq.append(FfiConverterTypeDevice.read(from: &buf))
+        }
+        return seq
+    }
+}
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -2665,6 +2715,9 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_method_connectionrequest_accept() != 65071 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_data_rct_ffi_checksum_method_connectionrequest_cancel() != 2067 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_data_rct_ffi_checksum_method_connectionrequest_decline() != 22570 {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2684,6 +2737,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internaldiscovery_add_ble_implementation() != 43846 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_data_rct_ffi_checksum_method_internaldiscovery_get_devices() != 41875 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_internaldiscovery_parse_discovery_message() != 65291 {

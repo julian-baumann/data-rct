@@ -37,6 +37,16 @@ impl Discovery {
         })
     }
 
+    pub fn get_devices(&self) -> Vec<Device> {
+        let mut devices = vec![];
+
+        for device in DISCOVERED_DEVICES.get().unwrap().read().unwrap().iter() {
+            devices.push(device.1.clone().device.expect("No device in DeviceConnectionInfo"));
+        }
+
+        return devices
+    }
+
     pub fn get_connection_details(device: Device) -> Option<DeviceConnectionInfo> {
         if DISCOVERED_DEVICES.get().unwrap().read().unwrap().contains_key(&device.id) {
             return Some(DISCOVERED_DEVICES.get().unwrap().read().unwrap()[&device.id].clone());
@@ -50,6 +60,8 @@ impl Discovery {
     }
 
     pub fn start(&self) {
+        DISCOVERED_DEVICES.get().unwrap().write().unwrap().clear();
+
         if let Some(ble_discovery_implementation) = &self.ble_discovery_implementation {
             ble_discovery_implementation.start_scanning();
         }
@@ -84,10 +96,15 @@ impl Discovery {
                     }
                 }
 
-                if !DISCOVERED_DEVICES.get().unwrap().read().unwrap().contains_key(&device.id) {
-                    DISCOVERED_DEVICES.get().unwrap().write().unwrap().insert(device.id.clone(), device_connection_info.clone());
+                if DISCOVERED_DEVICES.get().unwrap().write().unwrap().contains_key(&device.id) {
+                    if !DISCOVERED_DEVICES.get().unwrap().write().unwrap().get(&device.id).unwrap().eq(&device_connection_info) {
+                        self.add_discovered_device(device.clone());
+                    }
+                } else {
                     self.add_discovered_device(device.clone());
                 }
+
+                DISCOVERED_DEVICES.get().unwrap().write().unwrap().insert(device.id.clone(), device_connection_info.clone());
             }
             Some(Content::OfflineDeviceId(device_id)) => {
                 DISCOVERED_DEVICES.get().unwrap().write().unwrap().remove(&device_id);

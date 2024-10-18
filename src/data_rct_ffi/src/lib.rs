@@ -53,20 +53,20 @@ impl InternalDiscovery {
         })
     }
 
+    pub fn get_devices(&self) -> Vec<Device> {
+        return self.handler.read().expect("Failed to lock handler").get_devices()
+    }
+
     pub fn add_ble_implementation(&self, implementation: Box<dyn BleDiscoveryImplementationDelegate>) {
         self.handler.write().expect("Failed to lock handler").add_ble_implementation(implementation);
     }
 
     pub fn start(&self) {
-        if let Some(ble_discovery_implementation) = &self.handler.read().expect("Failed to lock handler").ble_discovery_implementation {
-            ble_discovery_implementation.start_scanning();
-        }
+        self.handler.read().expect("Failed to lock handler").start();
     }
 
     pub fn stop(&self) {
-        if let Some(ble_discovery_implementation) = &self.handler.read().expect("Failed to lock handler").ble_discovery_implementation {
-            ble_discovery_implementation.stop_scanning();
-        }
+        self.handler.read().expect("Failed to lock handler").stop();
     }
 
     pub fn parse_discovery_message(&self, data: Vec<u8>, ble_uuid: Option<String>) {

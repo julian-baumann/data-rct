@@ -326,6 +326,10 @@ impl NearbyServer {
             let written_bytes = encrypted_stream.write(&buffer[..read_size])
                 .expect("Failed to write file buffer");
 
+            if written_bytes <= 0 {
+                break;
+            }
+
             all_written += written_bytes;
 
             NearbyServer::update_progress(&progress_delegate, SendProgressState::Transferring { progress: (all_written as f64 / file_size as f64) });

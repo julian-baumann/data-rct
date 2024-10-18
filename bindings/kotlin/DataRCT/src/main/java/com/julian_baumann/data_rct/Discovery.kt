@@ -13,6 +13,10 @@ class Discovery(context: Context, delegate: DiscoveryDelegate) {
         internal.addBleImplementation(bleImplementation)
     }
 
+    fun getDevices(): List<Device> {
+        return internal.getDevices()
+    }
+
     fun startScanning() {
         internal.start()
     }
