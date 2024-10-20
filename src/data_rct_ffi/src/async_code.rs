@@ -1,34 +1,23 @@
-use std::sync::Arc;
-
 pub use data_rct::{nearby::{BleServerImplementationDelegate, L2CapDelegate, NearbyConnectionDelegate, NearbyServer, SendProgressDelegate}, Device};
 use data_rct::protocol::discovery::{BluetoothLeConnectionInfo, DeviceDiscoveryMessage, TcpConnectionInfo};
 use data_rct::protocol::discovery::device_discovery_message::Content;
 use data_rct::protocol::prost::Message;
 pub use data_rct::stream::NativeStreamDelegate;
 pub use data_rct::errors::*;
-use tokio::sync::RwLock;
-
-struct InternalNearbyServerVariables {
-    discovery_message: Option<Vec<u8>>
-}
 
 #[derive(uniffi::Object)]
 pub struct InternalNearbyServer {
-    handler: NearbyServer,
-    mut_variables: Arc<RwLock<InternalNearbyServerVariables>>
+    handler: NearbyServer
 }
 
 #[uniffi::export(async_runtime = "tokio")]
 impl InternalNearbyServer {
     #[uniffi::constructor]
-    pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+    pub fn new(my_device: Device, file_storage: String, delegate: Option<Box<dyn NearbyConnectionDelegate>>) -> Self {
         let server = NearbyServer::new(my_device, file_storage, delegate);
 
         Self {
-            handler: server,
-            mut_variables: Arc::new(RwLock::new(InternalNearbyServerVariables {
-                discovery_message: None
-            }))
+            handler: server
         }
     }
 

@@ -851,12 +851,12 @@ open class InternalNearbyServer:
         return try! rustCall { uniffi_data_rct_ffi_fn_clone_internalnearbyserver(self.pointer, $0) }
     }
 
-    public convenience init(myDevice: Device, fileStorage: String, delegate: NearbyConnectionDelegate) {
+    public convenience init(myDevice: Device, fileStorage: String, delegate: NearbyConnectionDelegate?) {
         self.init(unsafeFromRawPointer: try! rustCall {
             uniffi_data_rct_ffi_fn_constructor_internalnearbyserver_new(
                 FfiConverterTypeDevice.lower(myDevice),
                 FfiConverterString.lower(fileStorage),
-                FfiConverterCallbackInterfaceNearbyConnectionDelegate.lower(delegate), $0
+                FfiConverterOptionCallbackInterfaceNearbyConnectionDelegate.lower(delegate), $0
             )
         })
     }
@@ -2584,6 +2584,27 @@ private struct FfiConverterOptionCallbackInterfaceDeviceListUpdateDelegate: FfiC
     }
 }
 
+private struct FfiConverterOptionCallbackInterfaceNearbyConnectionDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = NearbyConnectionDelegate?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceNearbyConnectionDelegate.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceNearbyConnectionDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 private struct FfiConverterOptionCallbackInterfaceSendProgressDelegate: FfiConverterRustBuffer {
     typealias SwiftType = SendProgressDelegate?
 
@@ -2793,7 +2814,7 @@ private var initializationResult: InitializationResult {
     if uniffi_data_rct_ffi_checksum_constructor_internaldiscovery_new() != 38932 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_data_rct_ffi_checksum_constructor_internalnearbyserver_new() != 19105 {
+    if uniffi_data_rct_ffi_checksum_constructor_internalnearbyserver_new() != 48386 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_data_rct_ffi_checksum_method_blediscoveryimplementationdelegate_start_scanning() != 20220 {

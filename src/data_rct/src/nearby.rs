@@ -68,7 +68,7 @@ pub struct NearbyServerLockedVariables {
     tcp_server: Option<TcpServer>,
     ble_server_implementation: Option<Box<dyn BleServerImplementationDelegate>>,
     ble_l2_cap_client: Option<Box<dyn L2CapDelegate>>,
-    nearby_connection_delegate: Arc<std::sync::Mutex<Box<dyn NearbyConnectionDelegate>>>,
+    nearby_connection_delegate: Option<Arc<std::sync::Mutex<Box<dyn NearbyConnectionDelegate>>>>,
     pub advertise: bool,
     file_storage: String,
     l2cap_connections: HashMap<String, Sender<Box<dyn NativeStreamDelegate>>>
@@ -79,13 +79,17 @@ pub struct NearbyServer {
 }
 
 impl NearbyServer {
-    pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+    pub fn new(my_device: Device, file_storage: String, delegate: Option<Box<dyn NearbyConnectionDelegate>>) -> Self {
         init_logger();
 
         let device_connection_info = DeviceConnectionInfo {
             device: Some(my_device.clone()),
             ble: None,
             tcp: None
+        };
+        let nearby_connection_delegate = match delegate {
+            Some(d) => Some(Arc::new(std::sync::Mutex::new(d))),
+            None => None
         };
 
         return Self {
@@ -94,7 +98,7 @@ impl NearbyServer {
                 tcp_server: None,
                 ble_server_implementation: None,
                 ble_l2_cap_client: None,
-                nearby_connection_delegate: Arc::new(std::sync::Mutex::new(delegate)),
+                nearby_connection_delegate,
                 advertise: false,
                 file_storage,
                 l2cap_connections: HashMap::new()
@@ -137,6 +141,11 @@ impl NearbyServer {
     pub async fn start(&self) {
         if self.variables.read().await.tcp_server.is_none() {
             let delegate = self.variables.read().await.nearby_connection_delegate.clone();
+
+            let Some(delegate) = delegate else {
+                return;
+            };
+
             let file_storage = self.variables.read().await.file_storage.clone();
             let tcp_server = TcpServer::new(delegate, file_storage).await;
 
@@ -346,6 +355,11 @@ impl NearbyServer {
 
     pub fn handle_incoming_connection(&self, native_stream_handle: Box<dyn NativeStreamDelegate>) {
         let delegate = self.variables.blocking_read().nearby_connection_delegate.clone();
+
+        let Some(delegate) = delegate else {
+            return;
+        };
+
         let file_storage = self.variables.blocking_read().file_storage.clone();
 
         thread::spawn(move || {

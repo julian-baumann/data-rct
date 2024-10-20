@@ -1,6 +1,6 @@
 //
 //  BleClient.swift
-//  
+//
 //
 //  Created by Julian Baumann on 06.01.24.
 //
@@ -26,18 +26,18 @@ public class BLEClientManager: NSObject, BleDiscoveryImplementationDelegate, CBC
         super.init()
         centralManager.delegate = self
     }
-    
+
     public func ensureValidState() throws {
         if state != .poweredOn {
             throw InvalidStateError()
         }
     }
-    
+
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         state = BluetoothState(from: central.state)
         delegate.discoveryDidUpdateState(state: state)
     }
-    
+
     public func startScanning() {
         if centralManager.isScanning {
             return
@@ -47,49 +47,50 @@ public class BLEClientManager: NSObject, BleDiscoveryImplementationDelegate, CBC
             CBCentralManagerScanOptionAllowDuplicatesKey: true
         ])
     }
-    
+
     public func stopScanning() {
         centralManager.stopScan()
+        centralManager.delegate = nil
     }
-    
+
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         peripheral.delegate = self
         discoveredPeripherals.append(peripheral)
         central.connect(peripheral)
     }
-    
+
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         peripheral.discoverServices([ServiceUUID])
     }
-    
+
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error = error {
             print(error)
             return
         }
-        
+
         let service = peripheral.services?.first(where: { $0.uuid == ServiceUUID })
-        
+
         guard let service = service else {
             return
         }
-        
+
         peripheral.discoverCharacteristics([CharacteristicUUID], for: service)
     }
-    
+
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error = error {
             print(error)
             return
         }
-        
+
         let characteristic = service.characteristics?.first(where: { $0.uuid == CharacteristicUUID })
-        
+
         if let characteristic = characteristic {
             peripheral.readValue(for: characteristic)
         }
     }
-    
+
     public func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
         peripheral.discoverServices([ServiceUUID])
         for service in invalidatedServices {
@@ -98,7 +99,7 @@ public class BLEClientManager: NSObject, BleDiscoveryImplementationDelegate, CBC
             }
         }
     }
-    
+
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
             print(error)
@@ -106,7 +107,7 @@ public class BLEClientManager: NSObject, BleDiscoveryImplementationDelegate, CBC
         }
 
         let data = characteristic.value
-        
+
         if let data = data {
             internalHandler.parseDiscoveryMessage(data: data, bleUuid: peripheral.identifier.uuidString)
             centralManager.cancelPeripheralConnection(peripheral)

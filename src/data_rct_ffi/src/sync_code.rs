@@ -19,7 +19,7 @@ pub struct InternalNearbyServer {
 }
 
 impl InternalNearbyServer {
-    pub fn new(my_device: Device, file_storage: String, delegate: Box<dyn NearbyConnectionDelegate>) -> Self {
+    pub fn new(my_device: Device, file_storage: String, delegate: Option<Box<dyn NearbyConnectionDelegate>>) -> Self {
         let server = NearbyServer::new(my_device, file_storage, delegate);
 
         let async_runtime = tokio::runtime::Builder::new_current_thread()
