@@ -1,11 +1,15 @@
-# DataRCT
+<div align="center">
+    <img align="center" src="./assets/logo.png" width="160" />
+</div>
 
-[![CI](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml/badge.svg)](https://github.com/julian-baumann/data-rct/actions/workflows/ci.yml)
+<p align="center">
+  <h1 align="center">InterShare SDK</h1>
+</p>
+
+[![CI](https://github.com/InterShare/InterShareSDK/actions/workflows/ci.yml/badge.svg)](https://github.com/InterShare/InterShareSDK/actions/workflows/ci.yml)
 ![](https://www.repostatus.org/badges/latest/wip.svg)
 
-DataRCT is a new protocol with the goal of establishing a secure and reliable connection between two nearby devices by using common technologies like TCP or BLE.
-
-This protocol is designed to be used without the need to know which transport medium is used for transmission. DataRCT always uses the fastest possible connection.
+This is the internal SDK used by the InterShare clients.
 
 ## Encryption
 
