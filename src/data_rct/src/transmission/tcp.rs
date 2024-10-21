@@ -83,7 +83,7 @@ pub struct TcpClient {
 
 impl TcpClient {
     pub fn connect(address: SocketAddr) -> Result<TcpStream, io::Error> {
-        let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(1))?;
+        let std_stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(2))?;
         std_stream.set_nonblocking(false).expect("Failed to set non blocking");
 
         return Ok(std_stream);

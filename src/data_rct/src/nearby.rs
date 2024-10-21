@@ -222,6 +222,7 @@ impl NearbyServer {
             return Ok(Box::new(encrypted_stream));
         }
 
+        println!("{:?}", tcp_stream.unwrap_err());
         return Err(ConnectErrors::FailedToOpenTcpStream);
     }
 

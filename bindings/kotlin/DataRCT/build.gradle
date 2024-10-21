@@ -82,7 +82,7 @@ publishing {
 cargo {
     module  = "../../../"       // Or whatever directory contains your Cargo.toml
     libname = "data_rct_ffi"          // Or whatever matches Cargo.toml's [package] name.
-    targets = ["arm", "x86", "arm64"]  // See bellow for a longer list of options
+    targets = ["arm", "x86_64", "arm64"]  // See bellow for a longer list of options
     apiLevel = 26
     profile = "release"
 }
